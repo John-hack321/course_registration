@@ -6,10 +6,15 @@
         It requires ZERO extra dependencies — no AppCompat, no Material library needed.
         This is the safest base for pure Jetpack Compose apps because Compose handles
         all real UI theming via Course_registrationTheme() in Theme.kt.
-        This XML theme only controls the system window chrome (status bar, nav bar).
+
+        STATUS BAR HANDLING:
+        - The bar is left transparent here so each Compose screen can draw its
+          gradient header BEHIND the status bar (true edge-to-edge).
+        - Light icons (white) are configured at runtime via enableEdgeToEdge(...)
+          in MainActivity using SystemBarStyle.dark(...).
     -->
     <style name="Theme.Course_registration" parent="android:Theme.Material.Light.NoActionBar">
-        <item name="android:statusBarColor">@color/uon_blue</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
         <item name="android:windowLightStatusBar">false</item>
     </style>

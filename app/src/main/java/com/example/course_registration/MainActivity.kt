@@ -3,9 +3,9 @@ package com.example.course_registration
 import android.content.Context
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.core.view.WindowCompat
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
@@ -191,12 +191,15 @@ class AppStorage(context: Context) {
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
-        
-        // Set status bar color programmatically
-        window.statusBarColor = android.graphics.Color.parseColor("#003580")
-        WindowCompat.getInsetsController(window, window.decorView).isAppearanceLightStatusBars = false
-        
+        // Edge-to-edge with LIGHT icons on the (transparent) status bar.
+        // Each screen draws its own gradient/header behind the status bar so
+        // the icons stay readable. SystemBarStyle.dark(...) here means
+        // "the bar background is dark, so render light foreground icons".
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT)
+        )
+
         setContent {
             Course_registrationTheme {
                 AppRoot()
@@ -543,13 +546,18 @@ fun MainAppShell(storage: AppStorage, user: AppUser, onLogout: () -> Unit) {
 
     Scaffold(
         containerColor = PageBg,
+        // IMPORTANT: don't let Scaffold reserve the status-bar area as padding
+        // — each screen's gradient header draws BEHIND the status bar itself
+        // (via .statusBarsPadding()). Otherwise the system icons end up sitting
+        // on the page background and become invisible.
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         bottomBar = {
             NavigationBar(
                 containerColor = SurfaceWhite,
                 tonalElevation = 0.dp,
                 modifier = Modifier
-                    .shadow(12.dp, RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
-                    .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
+                    .shadow(16.dp, RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp))
+                    .clip(RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp))
             ) {
                 BOTTOM_TABS.forEach { tab ->
                     val selected = currentRoute == tab.route ||
@@ -566,7 +574,13 @@ fun MainAppShell(storage: AppStorage, user: AppUser, onLogout: () -> Unit) {
                         icon = {
                             Icon(tab.icon, null, modifier = Modifier.size(22.dp))
                         },
-                        label = { Text(tab.label, fontSize = 11.sp) },
+                        label = {
+                            Text(
+                                tab.label,
+                                fontSize = 11.sp,
+                                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium
+                            )
+                        },
                         colors = NavigationBarItemDefaults.colors(
                             selectedIconColor = UoNBlue,
                             selectedTextColor = UoNBlue,
@@ -582,7 +596,9 @@ fun MainAppShell(storage: AppStorage, user: AppUser, onLogout: () -> Unit) {
         NavHost(
             navController = navController,
             startDestination = BottomTab.Home.route,
-            modifier = Modifier.padding(innerPadding)
+            // Only consume the BOTTOM inset (the nav bar) — let each screen
+            // draw under the status bar so headers extend behind it.
+            modifier = Modifier.padding(bottom = innerPadding.calculateBottomPadding())
         ) {
             composable(BottomTab.Home.route) {
                 HomeScreen(storage, user, navController, refreshKey)
@@ -618,51 +634,72 @@ fun HomeScreen(storage: AppStorage, user: AppUser, navController: NavHostControl
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
     ) {
-        // Header
+        // Header — gradient extends behind the status bar
         Box(
             modifier = Modifier
                 .fillMaxWidth()
+                .shadow(8.dp, RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp))
+                .clip(RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp))
                 .background(Brush.verticalGradient(listOf(UoNBlue, UoNLightBlue)))
                 .statusBarsPadding()
                 .padding(horizontal = 24.dp, vertical = 24.dp)
         ) {
             Column {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Box(
                         modifier = Modifier
-                            .size(44.dp)
+                            .size(48.dp)
                             .clip(CircleShape)
-                            .background(SurfaceWhite.copy(alpha = 0.2f)),
+                            .background(SurfaceWhite.copy(alpha = 0.2f))
+                            .border(1.5.dp, SurfaceWhite.copy(alpha = 0.35f), CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
                             user.fullName.firstOrNull()?.uppercase() ?: "U",
-                            color = SurfaceWhite, fontWeight = FontWeight.Bold, fontSize = 18.sp
+                            color = SurfaceWhite, fontWeight = FontWeight.Bold, fontSize = 19.sp
                         )
                     }
-                    Spacer(Modifier.width(12.dp))
-                    Column {
-                        Text("Welcome back,", color = SurfaceWhite.copy(alpha = 0.75f), fontSize = 12.sp)
-                        Text(user.fullName.split(" ").firstOrNull() ?: user.fullName,
-                            color = SurfaceWhite, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                    Spacer(Modifier.width(14.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            "Welcome back,",
+                            color = SurfaceWhite.copy(alpha = 0.75f),
+                            fontSize = 12.sp,
+                            letterSpacing = 0.3.sp
+                        )
+                        Text(
+                            user.fullName.split(" ").firstOrNull() ?: user.fullName,
+                            color = SurfaceWhite, fontWeight = FontWeight.Bold, fontSize = 19.sp
+                        )
+                    }
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(UoNGold.copy(alpha = 0.18f))
+                            .border(1.dp, UoNGold.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Text("Sem II", color = UoNGold, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
                     }
                 }
-                Spacer(Modifier.height(20.dp))
+                Spacer(Modifier.height(22.dp))
                 // Stats Row
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     StatChip("${registered.size}", "Registered", Modifier.weight(1f))
                     StatChip("${COURSE_CATALOGUE.size}", "Available", Modifier.weight(1f))
-                    StatChip("${registered.size * 3}", "Credits", Modifier.weight(1f))
+                    StatChip("${registered.sumOf { code -> COURSE_CATALOGUE.find { it.code == code }?.credits ?: 0 }}", "Credits", Modifier.weight(1f))
                 }
             }
         }
 
-        Spacer(Modifier.height(20.dp))
+        Spacer(Modifier.height(24.dp))
 
         // Quick Actions
-        Text("Quick Actions", fontWeight = FontWeight.SemiBold, fontSize = 15.sp,
-            color = TextPrimary, modifier = Modifier.padding(horizontal = 20.dp))
-        Spacer(Modifier.height(12.dp))
+        SectionLabel("QUICK ACTIONS", modifier = Modifier.padding(horizontal = 20.dp))
+        Spacer(Modifier.height(10.dp))
 
         Row(
             modifier = Modifier.padding(horizontal = 20.dp).fillMaxWidth(),
@@ -699,9 +736,9 @@ fun HomeScreen(storage: AppStorage, user: AppUser, navController: NavHostControl
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("My Courses", fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = TextPrimary)
+                SectionLabel("MY COURSES")
                 TextButton(onClick = { navController.navigate(BottomTab.MyCourses.route) }) {
-                    Text("See all", color = UoNLightBlue, fontSize = 12.sp)
+                    Text("See all", color = UoNLightBlue, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                 }
             }
             Spacer(Modifier.height(8.dp))
@@ -766,17 +803,37 @@ fun HomeScreen(storage: AppStorage, user: AppUser, navController: NavHostControl
 }
 
 @Composable
+fun SectionLabel(text: String, modifier: Modifier = Modifier) {
+    Text(
+        text,
+        fontWeight = FontWeight.Bold,
+        fontSize = 11.sp,
+        color = TextSecondary,
+        letterSpacing = 1.2.sp,
+        modifier = modifier
+    )
+}
+
+@Composable
 fun StatChip(value: String, label: String, modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
-            .clip(RoundedCornerShape(12.dp))
-            .background(SurfaceWhite.copy(alpha = 0.18f))
-            .padding(vertical = 10.dp),
+            .clip(RoundedCornerShape(14.dp))
+            .background(SurfaceWhite.copy(alpha = 0.16f))
+            .border(1.dp, SurfaceWhite.copy(alpha = 0.22f), RoundedCornerShape(14.dp))
+            .padding(vertical = 12.dp),
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(value, color = SurfaceWhite, fontWeight = FontWeight.Bold, fontSize = 20.sp)
-            Text(label, color = SurfaceWhite.copy(alpha = 0.75f), fontSize = 11.sp)
+            Text(value, color = SurfaceWhite, fontWeight = FontWeight.Bold, fontSize = 22.sp)
+            Spacer(Modifier.height(2.dp))
+            Text(
+                label,
+                color = SurfaceWhite.copy(alpha = 0.78f),
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Medium,
+                letterSpacing = 0.4.sp
+            )
         }
     }
 }
@@ -785,26 +842,33 @@ fun StatChip(value: String, label: String, modifier: Modifier = Modifier) {
 fun QuickActionCard(icon: ImageVector, label: String, color: Color, modifier: Modifier = Modifier, onClick: () -> Unit) {
     Card(
         modifier = modifier.clickable(onClick = onClick),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = SurfaceWhite),
-        elevation = CardDefaults.cardElevation(2.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        border = BorderStroke(1.dp, DividerColor)
     ) {
         Column(
-            modifier = Modifier.padding(16.dp).fillMaxWidth(),
+            modifier = Modifier.padding(vertical = 18.dp, horizontal = 12.dp).fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Box(
                 modifier = Modifier
-                    .size(40.dp)
-                    .clip(CircleShape)
+                    .size(46.dp)
+                    .clip(RoundedCornerShape(14.dp))
                     .background(color.copy(alpha = 0.12f)),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(icon, null, tint = color, modifier = Modifier.size(20.dp))
+                Icon(icon, null, tint = color, modifier = Modifier.size(22.dp))
             }
-            Spacer(Modifier.height(8.dp))
-            Text(label, fontSize = 11.sp, color = TextPrimary, textAlign = TextAlign.Center,
-                fontWeight = FontWeight.Medium, lineHeight = 15.sp)
+            Spacer(Modifier.height(10.dp))
+            Text(
+                label,
+                fontSize = 12.sp,
+                color = TextPrimary,
+                textAlign = TextAlign.Center,
+                fontWeight = FontWeight.SemiBold,
+                lineHeight = 15.sp
+            )
         }
     }
 }
@@ -856,34 +920,62 @@ fun CoursesScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        // Header
+        // Header — extends behind the status bar for proper edge-to-edge look
         Box(
             modifier = Modifier
                 .fillMaxWidth()
+                .shadow(8.dp, RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp))
+                .clip(RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp))
                 .background(Brush.verticalGradient(listOf(UoNBlue, UoNLightBlue)))
                 .statusBarsPadding()
-                .padding(horizontal = 20.dp, vertical = 20.dp)
+                .padding(horizontal = 20.dp, vertical = 22.dp)
         ) {
             Column {
-                Text("Course Catalogue", color = SurfaceWhite, fontWeight = FontWeight.Bold, fontSize = 22.sp)
-                Text("${COURSE_CATALOGUE.size} units available · Sem II 2025/26",
-                    color = SurfaceWhite.copy(alpha = 0.75f), fontSize = 12.sp)
-                Spacer(Modifier.height(14.dp))
+                Text(
+                    "Course Catalogue",
+                    color = SurfaceWhite,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 24.sp,
+                    letterSpacing = (-0.3).sp
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    "${COURSE_CATALOGUE.size} units available · Sem II 2025/26",
+                    color = SurfaceWhite.copy(alpha = 0.78f), fontSize = 12.sp
+                )
+                Spacer(Modifier.height(16.dp))
                 OutlinedTextField(
                     value = searchQuery,
                     onValueChange = { searchQuery = it },
-                    placeholder = { Text("Search courses...", fontSize = 13.sp, color = SurfaceWhite.copy(alpha = 0.6f)) },
-                    leadingIcon = { Icon(Icons.Default.Search, null, tint = SurfaceWhite.copy(alpha = 0.7f)) },
+                    placeholder = {
+                        Text("Search by name, code or department",
+                            fontSize = 13.sp, color = SurfaceWhite.copy(alpha = 0.65f))
+                    },
+                    leadingIcon = {
+                        Icon(Icons.Default.Search, null,
+                            tint = SurfaceWhite.copy(alpha = 0.85f),
+                            modifier = Modifier.size(20.dp))
+                    },
+                    trailingIcon = {
+                        if (searchQuery.isNotEmpty()) {
+                            IconButton(onClick = { searchQuery = "" }) {
+                                Icon(Icons.Default.Close, null,
+                                    tint = SurfaceWhite.copy(alpha = 0.7f),
+                                    modifier = Modifier.size(18.dp))
+                            }
+                        }
+                    },
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
+                    shape = RoundedCornerShape(14.dp),
                     singleLine = true,
                     colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = SurfaceWhite.copy(alpha = 0.5f),
-                        unfocusedBorderColor = SurfaceWhite.copy(alpha = 0.3f),
-                        focusedContainerColor = SurfaceWhite.copy(alpha = 0.15f),
+                        focusedBorderColor = SurfaceWhite.copy(alpha = 0.55f),
+                        unfocusedBorderColor = SurfaceWhite.copy(alpha = 0.28f),
+                        focusedContainerColor = SurfaceWhite.copy(alpha = 0.16f),
                         unfocusedContainerColor = SurfaceWhite.copy(alpha = 0.1f),
                         focusedTextColor = SurfaceWhite,
                         unfocusedTextColor = SurfaceWhite,
+                        cursorColor = SurfaceWhite,
                     ),
                     textStyle = LocalTextStyle.current.copy(fontSize = 14.sp)
                 )
@@ -1006,18 +1098,40 @@ fun MyCoursesScreen(
     val totalCredits = myCourses.sumOf { it.credits }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        // Header
+        // Header — gradient extends behind the status bar
         Box(
             modifier = Modifier
                 .fillMaxWidth()
+                .shadow(8.dp, RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp))
+                .clip(RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp))
                 .background(Brush.verticalGradient(listOf(Color(0xFF1B5E20), Color(0xFF2E7D32))))
                 .statusBarsPadding()
-                .padding(horizontal = 20.dp, vertical = 20.dp)
+                .padding(horizontal = 20.dp, vertical = 24.dp)
         ) {
-            Column {
-                Text("My Courses", color = SurfaceWhite, fontWeight = FontWeight.Bold, fontSize = 22.sp)
-                Text("${myCourses.size} units · $totalCredits credits enrolled",
-                    color = SurfaceWhite.copy(alpha = 0.75f), fontSize = 12.sp)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(SurfaceWhite.copy(alpha = 0.18f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Default.School, null,
+                        tint = SurfaceWhite, modifier = Modifier.size(22.dp))
+                }
+                Spacer(Modifier.width(14.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("My Courses", color = SurfaceWhite,
+                        fontWeight = FontWeight.Bold, fontSize = 22.sp,
+                        letterSpacing = (-0.3).sp)
+                    Text(
+                        "${myCourses.size} units · $totalCredits credits enrolled",
+                        color = SurfaceWhite.copy(alpha = 0.78f), fontSize = 12.sp
+                    )
+                }
             }
         }
 
@@ -1158,19 +1272,33 @@ fun CourseDetailScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
+        // Top bar — extends behind the status bar
         Box(
             modifier = Modifier
                 .fillMaxWidth()
+                .shadow(8.dp, RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp))
+                .clip(RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp))
                 .background(Brush.verticalGradient(listOf(UoNBlue, UoNLightBlue)))
                 .statusBarsPadding()
-                .padding(horizontal = 16.dp, vertical = 16.dp)
+                .padding(horizontal = 8.dp, vertical = 12.dp)
         ) {
-            IconButton(onClick = { navController.popBackStack() },
-                modifier = Modifier.align(Alignment.CenterStart)) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = SurfaceWhite)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = { navController.popBackStack() }) {
+                    Icon(
+                        Icons.AutoMirrored.Filled.ArrowBack, null,
+                        tint = SurfaceWhite, modifier = Modifier.size(22.dp)
+                    )
+                }
+                Text(
+                    "Course Details",
+                    color = SurfaceWhite,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 17.sp
+                )
             }
-            Text("Course Details", modifier = Modifier.align(Alignment.Center),
-                color = SurfaceWhite, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
         }
 
         Column(
@@ -1292,11 +1420,13 @@ fun ProfileScreen(user: AppUser, onLogout: () -> Unit) {
     }
 
     Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-        // Header
+        // Header — UoN brand gradient extends behind the status bar
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(Brush.verticalGradient(listOf(Color(0xFF4A148C), Color(0xFF6A1B9A))))
+                .shadow(8.dp, RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp))
+                .clip(RoundedCornerShape(bottomStart = 24.dp, bottomEnd = 24.dp))
+                .background(Brush.verticalGradient(listOf(UoNBlue, UoNLightBlue)))
                 .statusBarsPadding()
                 .padding(horizontal = 20.dp, vertical = 32.dp),
             contentAlignment = Alignment.Center
@@ -1304,27 +1434,53 @@ fun ProfileScreen(user: AppUser, onLogout: () -> Unit) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Box(
                     modifier = Modifier
-                        .size(80.dp)
+                        .size(86.dp)
                         .clip(CircleShape)
-                        .background(SurfaceWhite.copy(alpha = 0.2f))
-                        .border(2.dp, SurfaceWhite.copy(alpha = 0.5f), CircleShape),
+                        .background(SurfaceWhite.copy(alpha = 0.18f))
+                        .border(2.dp, SurfaceWhite.copy(alpha = 0.45f), CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         user.fullName.firstOrNull()?.uppercase() ?: "U",
-                        color = SurfaceWhite, fontWeight = FontWeight.Bold, fontSize = 32.sp
+                        color = SurfaceWhite, fontWeight = FontWeight.Bold, fontSize = 34.sp
                     )
                 }
-                Spacer(Modifier.height(12.dp))
-                Text(user.fullName, color = SurfaceWhite, fontWeight = FontWeight.Bold, fontSize = 20.sp)
-                Text("@${user.username}", color = SurfaceWhite.copy(alpha = 0.7f), fontSize = 13.sp)
+                Spacer(Modifier.height(14.dp))
+                Text(
+                    user.fullName,
+                    color = SurfaceWhite,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 20.sp,
+                    letterSpacing = (-0.2).sp
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    "@${user.username}",
+                    color = SurfaceWhite.copy(alpha = 0.78f),
+                    fontSize = 13.sp
+                )
+                Spacer(Modifier.height(10.dp))
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(UoNGold.copy(alpha = 0.18f))
+                        .border(1.dp, UoNGold.copy(alpha = 0.5f), RoundedCornerShape(20.dp))
+                        .padding(horizontal = 12.dp, vertical = 5.dp)
+                ) {
+                    Text(
+                        "Student · ${user.studentId}",
+                        color = UoNGold,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
             }
         }
 
-        Spacer(Modifier.height(20.dp))
+        Spacer(Modifier.height(24.dp))
 
         // Account Info
-        ProfileSection("Account Information") {
+        ProfileSection("ACCOUNT INFORMATION") {
             ProfileInfoRow(Icons.Default.Badge, "Full Name", user.fullName)
             HorizontalDivider(color = DividerColor, modifier = Modifier.padding(horizontal = 16.dp))
             ProfileInfoRow(Icons.Default.Person, "Username", user.username)
@@ -1334,7 +1490,7 @@ fun ProfileScreen(user: AppUser, onLogout: () -> Unit) {
 
         Spacer(Modifier.height(16.dp))
 
-        ProfileSection("Academic Info") {
+        ProfileSection("ACADEMIC INFO") {
             ProfileInfoRow(Icons.Default.School, "Department", "Computing & Informatics")
             HorizontalDivider(color = DividerColor, modifier = Modifier.padding(horizontal = 16.dp))
             ProfileInfoRow(Icons.Default.CalendarToday, "Academic Year", "2025/2026")
@@ -1368,14 +1524,13 @@ fun ProfileScreen(user: AppUser, onLogout: () -> Unit) {
 @Composable
 fun ProfileSection(title: String, content: @Composable ColumnScope.() -> Unit) {
     Column(modifier = Modifier.padding(horizontal = 20.dp)) {
-        Text(title, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
-            color = TextSecondary, letterSpacing = 0.8.sp,
-            modifier = Modifier.padding(bottom = 8.dp))
+        SectionLabel(title, modifier = Modifier.padding(bottom = 10.dp, start = 4.dp))
         Card(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
+            shape = RoundedCornerShape(18.dp),
             colors = CardDefaults.cardColors(containerColor = SurfaceWhite),
-            elevation = CardDefaults.cardElevation(1.dp)
+            elevation = CardDefaults.cardElevation(0.dp),
+            border = BorderStroke(1.dp, DividerColor)
         ) {
             Column { content() }
         }
