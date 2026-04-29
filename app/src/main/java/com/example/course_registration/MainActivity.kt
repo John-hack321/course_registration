@@ -27,6 +27,8 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -255,45 +257,90 @@ fun LoginScreen(storage: AppStorage, onLoggedIn: (String) -> Unit, onGoRegister:
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Brush.verticalGradient(listOf(UoNBlue, Color(0xFF1565C0), PageBg)))
+            .background(Brush.verticalGradient(listOf(UoNBlue, UoNLightBlue, Color(0xFF1976D2))))
     ) {
+        // Decorative gold accent in the top-right corner
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .offset(x = 40.dp, y = (-40).dp)
+                .size(180.dp)
+                .clip(CircleShape)
+                .background(UoNGold.copy(alpha = 0.18f))
+        )
+        // Decorative soft blue blob in the bottom-left
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .offset(x = (-60).dp, y = 60.dp)
+                .size(220.dp)
+                .clip(CircleShape)
+                .background(SurfaceWhite.copy(alpha = 0.08f))
+        )
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .verticalScroll(rememberScrollState()),
+                .verticalScroll(rememberScrollState())
+                .statusBarsPadding(),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Spacer(Modifier.height(80.dp))
+            Spacer(Modifier.height(56.dp))
 
-            // Logo Area
+            // Hero — logo + title
+            LogoMark(sizeDp = 92, cornerDp = 22, fallbackTextSize = 26)
+
+            Spacer(Modifier.height(20.dp))
+            Text(
+                "University of Nairobi",
+                color = SurfaceWhite,
+                fontWeight = FontWeight.Bold,
+                fontSize = 24.sp,
+                letterSpacing = (-0.3).sp
+            )
+            Spacer(Modifier.height(4.dp))
             Box(
                 modifier = Modifier
-                    .size(80.dp)
-                    .clip(CircleShape)
-                    .background(SurfaceWhite.copy(alpha = 0.15f))
-                    .border(2.dp, SurfaceWhite.copy(alpha = 0.5f), CircleShape),
-                contentAlignment = Alignment.Center
+                    .clip(RoundedCornerShape(20.dp))
+                    .background(UoNGold.copy(alpha = 0.18f))
+                    .border(1.dp, UoNGold.copy(alpha = 0.5f), RoundedCornerShape(20.dp))
+                    .padding(horizontal = 14.dp, vertical = 5.dp)
             ) {
-                Text("UoN", color = SurfaceWhite, fontWeight = FontWeight.Bold, fontSize = 22.sp)
+                Text(
+                    "STUDENT PORTAL",
+                    color = UoNGold,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.6.sp
+                )
             }
-            Spacer(Modifier.height(16.dp))
-            Text("University of Nairobi", color = SurfaceWhite, fontWeight = FontWeight.Bold, fontSize = 22.sp)
-            Text("Student Portal", color = UoNGold, fontSize = 14.sp, fontWeight = FontWeight.Medium)
 
-            Spacer(Modifier.height(40.dp))
+            Spacer(Modifier.height(36.dp))
 
             Card(
                 modifier = Modifier
-                    .padding(horizontal = 24.dp)
-                    .fillMaxWidth(),
-                shape = RoundedCornerShape(24.dp),
+                    .padding(horizontal = 20.dp)
+                    .fillMaxWidth()
+                    .shadow(20.dp, RoundedCornerShape(28.dp)),
+                shape = RoundedCornerShape(28.dp),
                 colors = CardDefaults.cardColors(containerColor = SurfaceWhite),
-                elevation = CardDefaults.cardElevation(8.dp)
+                elevation = CardDefaults.cardElevation(0.dp)
             ) {
-                Column(modifier = Modifier.padding(28.dp)) {
-                    Text("Sign In", fontWeight = FontWeight.Bold, fontSize = 22.sp, color = TextPrimary)
-                    Text("Welcome back", color = TextSecondary, fontSize = 13.sp)
-                    Spacer(Modifier.height(24.dp))
+                Column(modifier = Modifier.padding(horizontal = 26.dp, vertical = 28.dp)) {
+                    Text(
+                        "Welcome back",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 24.sp,
+                        color = TextPrimary,
+                        letterSpacing = (-0.3).sp
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "Sign in to continue your registration",
+                        color = TextSecondary,
+                        fontSize = 13.sp
+                    )
+                    Spacer(Modifier.height(26.dp))
 
                     AuthTextField(
                         value = username,
@@ -313,44 +360,110 @@ fun LoginScreen(storage: AppStorage, onLoggedIn: (String) -> Unit, onGoRegister:
                     )
 
                     if (error != null) {
-                        Spacer(Modifier.height(8.dp))
-                        Text(error!!, color = ErrorRed, fontSize = 12.sp)
+                        Spacer(Modifier.height(10.dp))
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(ErrorRed.copy(alpha = 0.08f))
+                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Default.ErrorOutline, null,
+                                tint = ErrorRed, modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(error!!, color = ErrorRed, fontSize = 12.sp)
+                        }
                     }
 
-                    Spacer(Modifier.height(24.dp))
+                    Spacer(Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        TextButton(
+                            onClick = { /* placeholder */ },
+                            contentPadding = PaddingValues(horizontal = 4.dp, vertical = 0.dp)
+                        ) {
+                            Text(
+                                "Forgot password?",
+                                color = UoNLightBlue,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                        }
+                    }
+
+                    Spacer(Modifier.height(16.dp))
                     Button(
                         onClick = {
                             val user = storage.findUser(username.trim())
                             if (user == null) {
-                                error = "Username not found"
+                                error = "We couldn't find that username"
                             } else if (user.passwordHash != storage.simpleHash(password)) {
-                                error = "Incorrect password"
+                                error = "Incorrect password — please try again"
                             } else {
                                 storage.setLoggedIn(user.username)
                                 onLoggedIn(user.username)
                             }
                         },
-                        modifier = Modifier.fillMaxWidth().height(52.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(54.dp)
+                            .shadow(6.dp, RoundedCornerShape(14.dp)),
                         shape = RoundedCornerShape(14.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = UoNBlue)
                     ) {
                         Text("Sign In", fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+                        Spacer(Modifier.width(8.dp))
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowForward, null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+
+                    Spacer(Modifier.height(20.dp))
+
+                    // Subtle divider
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        HorizontalDivider(modifier = Modifier.weight(1f), color = DividerColor)
+                        Text(
+                            "  OR  ",
+                            color = TextSecondary,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                        HorizontalDivider(modifier = Modifier.weight(1f), color = DividerColor)
                     }
 
                     Spacer(Modifier.height(16.dp))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically
+                    OutlinedButton(
+                        onClick = onGoRegister,
+                        modifier = Modifier.fillMaxWidth().height(52.dp),
+                        shape = RoundedCornerShape(14.dp),
+                        border = BorderStroke(1.5.dp, UoNBlue.copy(alpha = 0.4f))
                     ) {
-                        Text("No account? ", color = TextSecondary, fontSize = 13.sp)
-                        TextButton(onClick = onGoRegister, contentPadding = PaddingValues(0.dp)) {
-                            Text("Create one", color = UoNLightBlue, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
-                        }
+                        Text(
+                            "Create new account",
+                            color = UoNBlue,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 14.sp
+                        )
                     }
                 }
             }
-            Spacer(Modifier.height(40.dp))
+            Spacer(Modifier.height(28.dp))
+            Text(
+                "© University of Nairobi · 2025/26",
+                color = SurfaceWhite.copy(alpha = 0.6f),
+                fontSize = 11.sp
+            )
+            Spacer(Modifier.height(24.dp))
         }
     }
 }
@@ -369,61 +482,101 @@ fun RegisterScreen(storage: AppStorage, onRegistered: () -> Unit, onBack: () -> 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(Brush.verticalGradient(listOf(UoNBlue, Color(0xFF1565C0), PageBg)))
+            .background(Brush.verticalGradient(listOf(UoNBlue, UoNLightBlue, Color(0xFF1976D2))))
     ) {
+        // Decorative gold accent
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .offset(x = 40.dp, y = (-40).dp)
+                .size(180.dp)
+                .clip(CircleShape)
+                .background(UoNGold.copy(alpha = 0.18f))
+        )
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .offset(x = (-60).dp, y = 60.dp)
+                .size(220.dp)
+                .clip(CircleShape)
+                .background(SurfaceWhite.copy(alpha = 0.08f))
+        )
+
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .verticalScroll(rememberScrollState()),
+                .verticalScroll(rememberScrollState())
+                .statusBarsPadding(),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Top bar
+            // Top bar with back button
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .statusBarsPadding()
                     .padding(horizontal = 8.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(onClick = onBack) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = SurfaceWhite)
+                    Icon(
+                        Icons.AutoMirrored.Filled.ArrowBack, null,
+                        tint = SurfaceWhite, modifier = Modifier.size(22.dp)
+                    )
                 }
-                Text("Create Account", color = SurfaceWhite, fontWeight = FontWeight.SemiBold, fontSize = 17.sp)
+                Text(
+                    "Create Account",
+                    color = SurfaceWhite,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 17.sp
+                )
             }
 
-            Spacer(Modifier.height(16.dp))
-            Box(
-                modifier = Modifier
-                    .size(64.dp)
-                    .clip(CircleShape)
-                    .background(SurfaceWhite.copy(alpha = 0.15f))
-                    .border(2.dp, SurfaceWhite.copy(alpha = 0.5f), CircleShape),
-                contentAlignment = Alignment.Center
-            ) {
-                Text("UoN", color = SurfaceWhite, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-            }
+            Spacer(Modifier.height(12.dp))
+            LogoMark(sizeDp = 72, cornerDp = 18, fallbackTextSize = 20)
+
+            Spacer(Modifier.height(14.dp))
+            Text(
+                "Join the Portal",
+                color = SurfaceWhite,
+                fontWeight = FontWeight.Bold,
+                fontSize = 22.sp,
+                letterSpacing = (-0.3).sp
+            )
+            Spacer(Modifier.height(2.dp))
+            Text(
+                "Register with your student details",
+                color = SurfaceWhite.copy(alpha = 0.78f),
+                fontSize = 13.sp
+            )
+
             Spacer(Modifier.height(24.dp))
 
             Card(
-                modifier = Modifier.padding(horizontal = 24.dp).fillMaxWidth(),
-                shape = RoundedCornerShape(24.dp),
+                modifier = Modifier
+                    .padding(horizontal = 20.dp)
+                    .fillMaxWidth()
+                    .shadow(20.dp, RoundedCornerShape(28.dp)),
+                shape = RoundedCornerShape(28.dp),
                 colors = CardDefaults.cardColors(containerColor = SurfaceWhite),
-                elevation = CardDefaults.cardElevation(8.dp)
+                elevation = CardDefaults.cardElevation(0.dp)
             ) {
-                Column(modifier = Modifier.padding(28.dp)) {
-                    Text("Register", fontWeight = FontWeight.Bold, fontSize = 22.sp, color = TextPrimary)
-                    Text("Set up your student account", color = TextSecondary, fontSize = 13.sp)
-                    Spacer(Modifier.height(24.dp))
+                Column(modifier = Modifier.padding(horizontal = 26.dp, vertical = 26.dp)) {
+                    SectionLabel("PERSONAL INFORMATION")
+                    Spacer(Modifier.height(14.dp))
+                    AuthTextField(fullName, { fullName = it; error = null },
+                        "Full Name", Icons.Default.Badge)
+                    Spacer(Modifier.height(12.dp))
+                    AuthTextField(studentId, { studentId = it; error = null },
+                        "Student ID (e.g. C02-0000/2022)", Icons.Default.CreditCard)
 
-                    AuthTextField(fullName, { fullName = it; error = null }, "Full Name", Icons.Default.Badge)
-                    Spacer(Modifier.height(12.dp))
-                    AuthTextField(studentId, { studentId = it; error = null }, "Student ID (e.g. C02-0000/2022)", Icons.Default.CreditCard)
-                    Spacer(Modifier.height(12.dp))
-                    AuthTextField(username, { username = it; error = null }, "Username", Icons.Default.Person)
+                    Spacer(Modifier.height(20.dp))
+                    SectionLabel("ACCOUNT CREDENTIALS")
+                    Spacer(Modifier.height(14.dp))
+                    AuthTextField(username, { username = it; error = null },
+                        "Username", Icons.Default.Person)
                     Spacer(Modifier.height(12.dp))
                     AuthTextField(
                         value = password, onValueChange = { password = it; error = null },
-                        label = "Password", leadingIcon = Icons.Default.Lock,
+                        label = "Password (min. 6 characters)", leadingIcon = Icons.Default.Lock,
                         isPassword = true, passwordVisible = pwVisible,
                         onTogglePassword = { pwVisible = !pwVisible }
                     )
@@ -436,8 +589,22 @@ fun RegisterScreen(storage: AppStorage, onRegistered: () -> Unit, onBack: () -> 
                     )
 
                     if (error != null) {
-                        Spacer(Modifier.height(8.dp))
-                        Text(error!!, color = ErrorRed, fontSize = 12.sp)
+                        Spacer(Modifier.height(12.dp))
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(ErrorRed.copy(alpha = 0.08f))
+                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Default.ErrorOutline, null,
+                                tint = ErrorRed, modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(error!!, color = ErrorRed, fontSize = 12.sp)
+                        }
                     }
 
                     Spacer(Modifier.height(24.dp))
@@ -464,14 +631,22 @@ fun RegisterScreen(storage: AppStorage, onRegistered: () -> Unit, onBack: () -> 
                                 onRegistered()
                             }
                         },
-                        modifier = Modifier.fillMaxWidth().height(52.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(54.dp)
+                            .shadow(6.dp, RoundedCornerShape(14.dp)),
                         shape = RoundedCornerShape(14.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = UoNBlue)
                     ) {
                         Text("Create Account", fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+                        Spacer(Modifier.width(8.dp))
+                        Icon(
+                            Icons.Default.CheckCircle, null,
+                            modifier = Modifier.size(18.dp)
+                        )
                     }
 
-                    Spacer(Modifier.height(12.dp))
+                    Spacer(Modifier.height(16.dp))
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.Center,
@@ -479,12 +654,73 @@ fun RegisterScreen(storage: AppStorage, onRegistered: () -> Unit, onBack: () -> 
                     ) {
                         Text("Already have an account? ", color = TextSecondary, fontSize = 13.sp)
                         TextButton(onClick = onBack, contentPadding = PaddingValues(0.dp)) {
-                            Text("Sign in", color = UoNLightBlue, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                            Text(
+                                "Sign in",
+                                color = UoNLightBlue,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
                         }
                     }
                 }
             }
-            Spacer(Modifier.height(40.dp))
+            Spacer(Modifier.height(28.dp))
+            Text(
+                "© University of Nairobi · 2025/26",
+                color = SurfaceWhite.copy(alpha = 0.6f),
+                fontSize = 11.sp
+            )
+            Spacer(Modifier.height(24.dp))
+        }
+    }
+}
+
+// ── Smart Logo Mark ───────────────────────────────────────────────────────────
+// Tries to load `R.drawable.uon_logo` at runtime. If you haven't added the
+// image yet, it gracefully falls back to a styled "UoN" text mark. Just drop
+// uon_logo.png (or .webp / .jpg) into app/src/main/res/drawable/ and it
+// will appear automatically.
+@Composable
+fun LogoMark(
+    sizeDp: Int = 80,
+    cornerDp: Int = 20,
+    fallbackTextSize: Int = 22,
+    showBorder: Boolean = true
+) {
+    val context = LocalContext.current
+    val resId = remember {
+        context.resources.getIdentifier("uon_logo", "drawable", context.packageName)
+    }
+    Box(
+        modifier = Modifier
+            .size(sizeDp.dp)
+            .shadow(12.dp, RoundedCornerShape(cornerDp.dp))
+            .clip(RoundedCornerShape(cornerDp.dp))
+            .background(SurfaceWhite)
+            .then(
+                if (showBorder) Modifier.border(
+                    2.dp, SurfaceWhite.copy(alpha = 0.6f), RoundedCornerShape(cornerDp.dp)
+                ) else Modifier
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        if (resId != 0) {
+            Image(
+                painter = painterResource(id = resId),
+                contentDescription = "University of Nairobi logo",
+                modifier = Modifier
+                    .padding(8.dp)
+                    .fillMaxSize(),
+                contentScale = ContentScale.Fit
+            )
+        } else {
+            Text(
+                "UoN",
+                color = UoNBlue,
+                fontWeight = FontWeight.Bold,
+                fontSize = fallbackTextSize.sp,
+                letterSpacing = (-0.5).sp
+            )
         }
     }
 }
@@ -499,8 +735,15 @@ fun AuthTextField(
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
-        label = { Text(label, fontSize = 13.sp) },
-        leadingIcon = { Icon(leadingIcon, null, tint = UoNLightBlue, modifier = Modifier.size(20.dp)) },
+        label = { Text(label, fontSize = 13.sp, fontWeight = FontWeight.Medium) },
+        leadingIcon = {
+            Box(
+                modifier = Modifier.padding(start = 4.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(leadingIcon, null, tint = UoNLightBlue, modifier = Modifier.size(20.dp))
+            }
+        },
         trailingIcon = if (isPassword) {
             {
                 IconButton(onClick = { onTogglePassword?.invoke() }) {
@@ -513,15 +756,19 @@ fun AuthTextField(
         } else null,
         visualTransformation = if (isPassword && !passwordVisible) PasswordVisualTransformation() else VisualTransformation.None,
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(14.dp),
         singleLine = true,
+        textStyle = LocalTextStyle.current.copy(fontSize = 14.sp, fontWeight = FontWeight.Medium),
         colors = OutlinedTextFieldDefaults.colors(
-            focusedBorderColor = UoNLightBlue,
+            focusedBorderColor = UoNBlue,
             unfocusedBorderColor = DividerColor,
-            focusedContainerColor = UoNSky,
-            unfocusedContainerColor = Color(0xFFF9FAFC),
-        ),
-        textStyle = LocalTextStyle.current.copy(fontSize = 14.sp, color = TextPrimary)
+            focusedContainerColor = UoNSky.copy(alpha = 0.5f),
+            unfocusedContainerColor = Color(0xFFF7F9FC),
+            focusedLabelColor = UoNBlue,
+            cursorColor = UoNBlue,
+            focusedTextColor = TextPrimary,
+            unfocusedTextColor = TextPrimary,
+        )
     )
 }
 
