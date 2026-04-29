@@ -419,7 +419,7 @@ fun LoginScreen(storage: AppStorage, onLoggedIn: (String) -> Unit, onGoRegister:
                         Text("Sign In", fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
                         Spacer(Modifier.width(8.dp))
                         Icon(
-                            Icons.AutoMirrored.Filled.ArrowForward, null,
+                            Icons.Filled.ArrowForward, null,
                             modifier = Modifier.size(18.dp)
                         )
                     }
