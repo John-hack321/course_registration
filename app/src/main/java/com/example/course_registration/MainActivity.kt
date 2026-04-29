@@ -9,12 +9,13 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -23,532 +24,1374 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.font.Font
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.*
 import com.example.course_registration.ui.theme.Course_registrationTheme
-import java.net.URLEncoder
+import org.json.JSONArray
+import org.json.JSONObject
 import java.net.URLDecoder
+import java.net.URLEncoder
 
-// ── UoN Brand Colors ──────────────────────────────────────────────────────────
-val UoNBlue       = Color(0xFF003580)   // primary deep blue
-val UoNLightBlue  = Color(0xFF0057B8)   // interactive / accent
-val UoNSky        = Color(0xFFE8F0FB)   // tinted background panels
-val UoNGold       = Color(0xFFF5A623)   // secondary accent (UoN gold)
+// ── Brand Colors ──────────────────────────────────────────────────────────────
+val UoNBlue       = Color(0xFF003580)
+val UoNLightBlue  = Color(0xFF0057B8)
+val UoNSky        = Color(0xFFE8F0FB)
+val UoNGold       = Color(0xFFF5A623)
 val SurfaceWhite  = Color(0xFFFFFFFF)
 val TextPrimary   = Color(0xFF0A1628)
 val TextSecondary = Color(0xFF5A6A85)
 val DividerColor  = Color(0xFFE2E8F4)
 val ErrorRed      = Color(0xFFD32F2F)
 val SuccessGreen  = Color(0xFF2E7D32)
+val PageBg        = Color(0xFFF4F7FC)
 
-// Shared-Prefs key constants
-private const val PREFS_NAME   = "uon_course_reg"
-private const val KEY_LAST_ID  = "last_student_id"
-private const val KEY_LAST_COURSE = "last_course"
+// ── SharedPrefs keys ─────────────────────────────────────────────────────────
+private const val PREFS_NAME        = "uon_app"
+private const val KEY_USERS         = "users_json"        // JSONArray of user objects
+private const val KEY_LOGGED_IN     = "logged_in_username"
+private const val KEY_REGISTRATIONS = "registrations_json" // JSONObject: username -> JSONArray of course codes
 
+// ── Data Classes ──────────────────────────────────────────────────────────────
+data class Course(
+    val code: String,
+    val name: String,
+    val department: String,
+    val credits: Int,
+    val semester: String,
+    val description: String
+)
+
+data class AppUser(
+    val username: String,
+    val fullName: String,
+    val studentId: String,
+    val passwordHash: String // simple hash for demo
+)
+
+// ── Course Catalogue ──────────────────────────────────────────────────────────
+val COURSE_CATALOGUE = listOf(
+    Course("SCS 3308", "Embedded Systems & Mobile Programming", "Computing & Informatics", 3, "Sem II 2025/26",
+        "Covers microcontrollers, RTOS fundamentals, and Android/iOS mobile development patterns."),
+    Course("SCS 3201", "Data Structures & Algorithms", "Computing & Informatics", 3, "Sem II 2025/26",
+        "In-depth study of trees, graphs, dynamic programming, and complexity analysis."),
+    Course("SCS 3305", "Database Systems", "Computing & Informatics", 3, "Sem II 2025/26",
+        "Relational models, SQL, normalization, transactions, and NoSQL paradigms."),
+    Course("SCS 3302", "Software Engineering", "Computing & Informatics", 3, "Sem II 2025/26",
+        "SDLC, Agile/Scrum, design patterns, testing strategies, and project management."),
+    Course("SCS 3306", "Computer Networks", "Computing & Informatics", 3, "Sem II 2025/26",
+        "OSI model, TCP/IP, routing algorithms, network security, and cloud infrastructure."),
+    Course("SCS 3310", "Artificial Intelligence", "Computing & Informatics", 3, "Sem II 2025/26",
+        "Search algorithms, machine learning fundamentals, neural networks, and NLP basics."),
+    Course("SCS 3304", "Operating Systems", "Computing & Informatics", 3, "Sem II 2025/26",
+        "Process management, memory management, file systems, and concurrency control."),
+    Course("SCS 3309", "Human-Computer Interaction", "Computing & Informatics", 3, "Sem II 2025/26",
+        "User research, prototyping, usability testing, and accessibility standards."),
+    Course("SCS 3401", "Information Security", "Computing & Informatics", 3, "Sem II 2025/26",
+        "Cryptography, network security, ethical hacking, and security policy frameworks."),
+    Course("SCS 3402", "Cloud Computing", "Computing & Informatics", 3, "Sem II 2025/26",
+        "Cloud architecture, IaaS/PaaS/SaaS models, AWS/GCP services, and DevOps practices."),
+    Course("MAT 3201", "Numerical Methods", "Mathematics", 3, "Sem II 2025/26",
+        "Numerical solutions to equations, interpolation, numerical integration and differentiation."),
+    Course("STA 3201", "Probability & Statistics", "Statistics & Actuarial", 3, "Sem II 2025/26",
+        "Probability distributions, hypothesis testing, regression, and statistical modelling."),
+)
+
+// ── Storage Helper ────────────────────────────────────────────────────────────
+class AppStorage(context: Context) {
+    private val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+
+    // --- Users ---
+    fun getUsers(): List<AppUser> {
+        val json = prefs.getString(KEY_USERS, "[]") ?: "[]"
+        val arr = JSONArray(json)
+        return (0 until arr.length()).map { i ->
+            val obj = arr.getJSONObject(i)
+            AppUser(obj.getString("username"), obj.getString("fullName"),
+                obj.getString("studentId"), obj.getString("passwordHash"))
+        }
+    }
+
+    fun saveUser(user: AppUser) {
+        val users = getUsers().toMutableList()
+        users.add(user)
+        val arr = JSONArray()
+        users.forEach { u ->
+            arr.put(JSONObject().apply {
+                put("username", u.username)
+                put("fullName", u.fullName)
+                put("studentId", u.studentId)
+                put("passwordHash", u.passwordHash)
+            })
+        }
+        prefs.edit().putString(KEY_USERS, arr.toString()).apply()
+    }
+
+    fun findUser(username: String): AppUser? = getUsers().find {
+        it.username.equals(username, ignoreCase = true)
+    }
+
+    fun usernameExists(username: String): Boolean = findUser(username) != null
+
+    // --- Session ---
+    fun setLoggedIn(username: String?) {
+        prefs.edit().putString(KEY_LOGGED_IN, username).apply()
+    }
+
+    fun getLoggedInUsername(): String? = prefs.getString(KEY_LOGGED_IN, null)
+
+    // --- Registrations ---
+    private fun getRegData(): JSONObject {
+        val json = prefs.getString(KEY_REGISTRATIONS, "{}") ?: "{}"
+        return JSONObject(json)
+    }
+
+    fun getRegisteredCourses(username: String): List<String> {
+        val data = getRegData()
+        if (!data.has(username)) return emptyList()
+        val arr = data.getJSONArray(username)
+        return (0 until arr.length()).map { arr.getString(it) }
+    }
+
+    fun registerCourse(username: String, courseCode: String) {
+        val data = getRegData()
+        val arr = if (data.has(username)) data.getJSONArray(username) else JSONArray()
+        // Avoid duplicates
+        val existing = (0 until arr.length()).map { arr.getString(it) }
+        if (courseCode !in existing) arr.put(courseCode)
+        data.put(username, arr)
+        prefs.edit().putString(KEY_REGISTRATIONS, data.toString()).apply()
+    }
+
+    fun unregisterCourse(username: String, courseCode: String) {
+        val data = getRegData()
+        if (!data.has(username)) return
+        val arr = data.getJSONArray(username)
+        val newArr = JSONArray()
+        for (i in 0 until arr.length()) {
+            if (arr.getString(i) != courseCode) newArr.put(arr.getString(i))
+        }
+        data.put(username, newArr)
+        prefs.edit().putString(KEY_REGISTRATIONS, data.toString()).apply()
+    }
+
+    fun simpleHash(input: String): String = input.hashCode().toString()
+}
+
+// ── MainActivity ──────────────────────────────────────────────────────────────
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
             Course_registrationTheme {
-                AppNavHost()
+                AppRoot()
             }
         }
     }
 }
 
+// ── App Root: decides auth vs main ───────────────────────────────────────────
 @Composable
-fun AppNavHost() {
-    val navController = rememberNavController()
-    NavHost(navController, startDestination = "main") {
-        composable("main") { MainScreen(navController) }
-        composable(
-            "confirmation/{studentId}/{course}",
-        ) { back ->
-            val studentId = back.arguments?.getString("studentId") ?: ""
-            val course    = back.arguments?.getString("course")    ?: ""
-            ConfirmationScreen(navController, studentId, course)
-        }
-    }
-}
-
-// ── Course List ───────────────────────────────────────────────────────────────
-val COURSES = listOf(
-    "SCS 3308 – Embedded Systems & Mobile Programming",
-    "SCS 3201 – Data Structures & Algorithms",
-    "SCS 3305 – Database Systems",
-    "SCS 3302 – Software Engineering",
-    "SCS 3306 – Computer Networks",
-    "SCS 3310 – Artificial Intelligence",
-    "SCS 3304 – Operating Systems",
-    "SCS 3309 – Human-Computer Interaction",
-)
-
-// ── Main Screen ───────────────────────────────────────────────────────────────
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun MainScreen(navController: NavHostController) {
+fun AppRoot() {
     val context = LocalContext.current
-    val prefs   = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    val storage = remember { AppStorage(context) }
+    var loggedInUser by remember { mutableStateOf(storage.getLoggedInUsername()) }
 
-    var studentId      by remember { mutableStateOf(prefs.getString(KEY_LAST_ID, "") ?: "") }
-    var selectedCourse by remember { mutableStateOf(
-        prefs.getString(KEY_LAST_COURSE, COURSES[0]) ?: COURSES[0]
-    ) }
-    var spinnerExpanded by remember { mutableStateOf(false) }
-    var idError        by remember { mutableStateOf<String?>(null) }
-
-    // Entrance animation
-    val alpha by animateFloatAsState(
-        targetValue = 1f,
-        animationSpec = tween(600, easing = EaseOutCubic),
-        label = "entrance"
-    )
-
-    Scaffold(
-        containerColor = Color(0xFFF6F8FC),
-    ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .verticalScroll(rememberScrollState()),
-        ) {
-
-            // ── Header ──────────────────────────────────────────────────────
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(
-                        Brush.verticalGradient(
-                            listOf(UoNBlue, UoNLightBlue)
-                        )
-                    )
-                    .padding(top = 56.dp, bottom = 36.dp, start = 24.dp, end = 24.dp)
-            ) {
-                Column(horizontalAlignment = Alignment.Start) {
-
-                    // Logo placeholder  ← swap R.drawable.ic_launcher with your UoN logo
-                    Box(
-                        modifier = Modifier
-                            .size(64.dp)
-                            .clip(CircleShape)
-                            .background(SurfaceWhite.copy(alpha = 0.15f))
-                            .border(1.5.dp, SurfaceWhite.copy(alpha = 0.4f), CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        // Replace with Image(painterResource(R.drawable.uon_logo), ...) once you add the logo
-                        Text(
-                            "UoN",
-                            color = SurfaceWhite,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 16.sp
-                        )
-                    }
-
-                    Spacer(Modifier.height(16.dp))
-
-                    Text(
-                        "Course Registration",
-                        color = SurfaceWhite,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 26.sp,
-                        lineHeight = 32.sp
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        "Department of Computing & Informatics",
-                        color = SurfaceWhite.copy(alpha = 0.75f),
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Normal
-                    )
-                    Spacer(Modifier.height(2.dp))
-                    Text(
-                        "University of Nairobi",
-                        color = UoNGold,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
+    if (loggedInUser == null) {
+        AuthFlow(storage) { username ->
+            loggedInUser = username
+        }
+    } else {
+        val user = storage.findUser(loggedInUser!!)
+        if (user == null) {
+            storage.setLoggedIn(null)
+            loggedInUser = null
+        } else {
+            MainAppShell(storage, user) {
+                storage.setLoggedIn(null)
+                loggedInUser = null
             }
-
-            // ── Form Card ───────────────────────────────────────────────────
-            Card(
-                modifier = Modifier
-                    .padding(horizontal = 20.dp)
-                    .offset(y = (-20).dp)
-                    .fillMaxWidth()
-                    .shadow(8.dp, RoundedCornerShape(20.dp)),
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = SurfaceWhite),
-                elevation = CardDefaults.cardElevation(0.dp)
-            ) {
-                Column(modifier = Modifier.padding(24.dp)) {
-
-                    SectionLabel("Select Course Unit")
-                    Spacer(Modifier.height(8.dp))
-
-                    // Spinner / Dropdown
-                    ExposedDropdownMenuBox(
-                        expanded = spinnerExpanded,
-                        onExpandedChange = { spinnerExpanded = !spinnerExpanded }
-                    ) {
-                        OutlinedTextField(
-                            value = selectedCourse,
-                            onValueChange = {},
-                            readOnly = true,
-                            trailingIcon = {
-                                Icon(
-                                    Icons.Default.KeyboardArrowDown,
-                                    contentDescription = null,
-                                    tint = UoNLightBlue
-                                )
-                            },
-                            modifier = Modifier
-                                .menuAnchor()
-                                .fillMaxWidth(),
-                            shape = RoundedCornerShape(12.dp),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = UoNLightBlue,
-                                unfocusedBorderColor = DividerColor,
-                                focusedContainerColor = UoNSky,
-                                unfocusedContainerColor = Color(0xFFF9FAFC),
-                            ),
-                            textStyle = LocalTextStyle.current.copy(
-                                fontSize = 14.sp,
-                                color = TextPrimary
-                            )
-                        )
-                        ExposedDropdownMenu(
-                            expanded = spinnerExpanded,
-                            onDismissRequest = { spinnerExpanded = false },
-                            modifier = Modifier.background(SurfaceWhite)
-                        ) {
-                            COURSES.forEachIndexed { index, course ->
-                                DropdownMenuItem(
-                                    text = {
-                                        Text(
-                                            course,
-                                            fontSize = 13.sp,
-                                            color = if (course == selectedCourse) UoNLightBlue else TextPrimary,
-                                            fontWeight = if (course == selectedCourse) FontWeight.SemiBold else FontWeight.Normal
-                                        )
-                                    },
-                                    onClick = {
-                                        selectedCourse = course
-                                        spinnerExpanded = false
-                                    }
-                                )
-                                if (index < COURSES.lastIndex) {
-                                    HorizontalDivider(color = DividerColor, thickness = 0.5.dp)
-                                }
-                            }
-                        }
-                    }
-
-                    Spacer(Modifier.height(20.dp))
-                    SectionLabel("Student ID")
-                    Spacer(Modifier.height(8.dp))
-
-                    OutlinedTextField(
-                        value = studentId,
-                        onValueChange = {
-                            studentId = it
-                            idError = null
-                        },
-                        placeholder = {
-                            Text("e.g. C02-0000/2022", color = TextSecondary, fontSize = 14.sp)
-                        },
-                        isError = idError != null,
-                        supportingText = {
-                            if (idError != null)
-                                Text(idError!!, color = ErrorRed, fontSize = 12.sp)
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
-                        singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = UoNLightBlue,
-                            unfocusedBorderColor = DividerColor,
-                            errorBorderColor = ErrorRed,
-                            focusedContainerColor = UoNSky,
-                            unfocusedContainerColor = Color(0xFFF9FAFC),
-                        ),
-                        textStyle = LocalTextStyle.current.copy(
-                            fontSize = 14.sp,
-                            color = TextPrimary
-                        )
-                    )
-
-                    Spacer(Modifier.height(28.dp))
-
-                    // Register Button
-                    Button(
-                        onClick = {
-                            idError = validateStudentId(studentId)
-                            if (idError == null) {
-                                // Persist to SharedPreferences
-                                prefs.edit()
-                                    .putString(KEY_LAST_ID, studentId)
-                                    .putString(KEY_LAST_COURSE, selectedCourse)
-                                    .apply()
-                                
-                                // URL Encode arguments to handle characters like '/' and '&'
-                                val encodedId = URLEncoder.encode(studentId, "UTF-8")
-                                val encodedCourse = URLEncoder.encode(selectedCourse, "UTF-8")
-                                navController.navigate("confirmation/$encodedId/$encodedCourse")
-                            }
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(52.dp),
-                        shape = RoundedCornerShape(14.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = UoNBlue,
-                            contentColor   = SurfaceWhite
-                        ),
-                        elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp)
-                    ) {
-                        Text(
-                            "Register for Course",
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 15.sp,
-                            letterSpacing = 0.3.sp
-                        )
-                    }
-                }
-            }
-
-            // ── Footer note ─────────────────────────────────────────────────
-            Spacer(Modifier.height(4.dp))
-            Text(
-                "Academic Year 2025/2026 · Semester II",
-                modifier = Modifier.fillMaxWidth(),
-                textAlign = TextAlign.Center,
-                color = TextSecondary,
-                fontSize = 12.sp
-            )
-            Spacer(Modifier.height(32.dp))
         }
     }
 }
 
-// ── Confirmation Screen ───────────────────────────────────────────────────────
+// ── Auth Flow ─────────────────────────────────────────────────────────────────
 @Composable
-fun ConfirmationScreen(
-    navController: NavHostController,
-    encodedStudentId: String,
-    encodedCourse: String
-) {
-    val studentId = URLDecoder.decode(encodedStudentId, "UTF-8")
-    val course    = URLDecoder.decode(encodedCourse, "UTF-8")
+fun AuthFlow(storage: AppStorage, onLoggedIn: (String) -> Unit) {
+    var showRegister by remember { mutableStateOf(false) }
+    if (showRegister) {
+        RegisterScreen(storage, onRegistered = { showRegister = false }, onBack = { showRegister = false })
+    } else {
+        LoginScreen(storage, onLoggedIn = onLoggedIn, onGoRegister = { showRegister = true })
+    }
+}
 
-    // Animated check scale
-    val scale by animateFloatAsState(
-        targetValue = 1f,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessMedium
-        ),
-        label = "checkScale"
-    )
-    var triggered by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) { triggered = true }
-    val checkScale by animateFloatAsState(
-        targetValue = if (triggered) 1f else 0f,
-        animationSpec = spring(
-            dampingRatio = Spring.DampingRatioMediumBouncy,
-            stiffness = Spring.StiffnessMedium
-        ),
-        label = "checkAnim"
-    )
+// ── Login Screen ──────────────────────────────────────────────────────────────
+@Composable
+fun LoginScreen(storage: AppStorage, onLoggedIn: (String) -> Unit, onGoRegister: () -> Unit) {
+    var username by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var passwordVisible by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
 
-    Scaffold(containerColor = Color(0xFFF6F8FC)) { padding ->
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Brush.verticalGradient(listOf(UoNBlue, Color(0xFF1565C0), PageBg)))
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Top bar
+            Spacer(Modifier.height(80.dp))
+
+            // Logo Area
             Box(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .background(UoNBlue)
-                    .padding(top = 48.dp, bottom = 20.dp, start = 16.dp, end = 16.dp)
+                    .size(80.dp)
+                    .clip(CircleShape)
+                    .background(SurfaceWhite.copy(alpha = 0.15f))
+                    .border(2.dp, SurfaceWhite.copy(alpha = 0.5f), CircleShape),
+                contentAlignment = Alignment.Center
             ) {
-                IconButton(
-                    onClick = { navController.popBackStack() },
-                    modifier = Modifier.align(Alignment.CenterStart)
-                ) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = SurfaceWhite)
-                }
-                Text(
-                    "Registration Confirmed",
-                    modifier = Modifier.align(Alignment.Center),
-                    color = SurfaceWhite,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 17.sp
-                )
+                Text("UoN", color = SurfaceWhite, fontWeight = FontWeight.Bold, fontSize = 22.sp)
             }
+            Spacer(Modifier.height(16.dp))
+            Text("University of Nairobi", color = SurfaceWhite, fontWeight = FontWeight.Bold, fontSize = 22.sp)
+            Text("Student Portal", color = UoNGold, fontSize = 14.sp, fontWeight = FontWeight.Medium)
 
             Spacer(Modifier.height(40.dp))
 
-            // Animated check icon
-            Box(
-                modifier = Modifier
-                    .size((88 * checkScale).dp)
-                    .clip(CircleShape)
-                    .background(
-                        Brush.radialGradient(listOf(Color(0xFFE8F5E9), Color(0xFFC8E6C9)))
-                    ),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    Icons.Default.CheckCircle,
-                    contentDescription = null,
-                    tint = SuccessGreen,
-                    modifier = Modifier.size(52.dp)
-                )
-            }
-
-            Spacer(Modifier.height(20.dp))
-            Text(
-                "You're registered!",
-                fontWeight = FontWeight.Bold,
-                fontSize = 22.sp,
-                color = TextPrimary
-            )
-            Spacer(Modifier.height(6.dp))
-            Text(
-                "Your course registration has been\nsuccessfully submitted.",
-                textAlign = TextAlign.Center,
-                color = TextSecondary,
-                fontSize = 14.sp,
-                lineHeight = 20.sp
-            )
-
-            Spacer(Modifier.height(32.dp))
-
-            // Details Card
             Card(
                 modifier = Modifier
                     .padding(horizontal = 24.dp)
                     .fillMaxWidth(),
-                shape = RoundedCornerShape(20.dp),
+                shape = RoundedCornerShape(24.dp),
                 colors = CardDefaults.cardColors(containerColor = SurfaceWhite),
-                elevation = CardDefaults.cardElevation(0.dp),
+                elevation = CardDefaults.cardElevation(8.dp)
+            ) {
+                Column(modifier = Modifier.padding(28.dp)) {
+                    Text("Sign In", fontWeight = FontWeight.Bold, fontSize = 22.sp, color = TextPrimary)
+                    Text("Welcome back", color = TextSecondary, fontSize = 13.sp)
+                    Spacer(Modifier.height(24.dp))
+
+                    AuthTextField(
+                        value = username,
+                        onValueChange = { username = it; error = null },
+                        label = "Username",
+                        leadingIcon = Icons.Default.Person
+                    )
+                    Spacer(Modifier.height(14.dp))
+                    AuthTextField(
+                        value = password,
+                        onValueChange = { password = it; error = null },
+                        label = "Password",
+                        leadingIcon = Icons.Default.Lock,
+                        isPassword = true,
+                        passwordVisible = passwordVisible,
+                        onTogglePassword = { passwordVisible = !passwordVisible }
+                    )
+
+                    if (error != null) {
+                        Spacer(Modifier.height(8.dp))
+                        Text(error!!, color = ErrorRed, fontSize = 12.sp)
+                    }
+
+                    Spacer(Modifier.height(24.dp))
+                    Button(
+                        onClick = {
+                            val user = storage.findUser(username.trim())
+                            if (user == null) {
+                                error = "Username not found"
+                            } else if (user.passwordHash != storage.simpleHash(password)) {
+                                error = "Incorrect password"
+                            } else {
+                                storage.setLoggedIn(user.username)
+                                onLoggedIn(user.username)
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth().height(52.dp),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = UoNBlue)
+                    ) {
+                        Text("Sign In", fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+                    }
+
+                    Spacer(Modifier.height(16.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("No account? ", color = TextSecondary, fontSize = 13.sp)
+                        TextButton(onClick = onGoRegister, contentPadding = PaddingValues(0.dp)) {
+                            Text("Create one", color = UoNLightBlue, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.height(40.dp))
+        }
+    }
+}
+
+// ── Register Screen ───────────────────────────────────────────────────────────
+@Composable
+fun RegisterScreen(storage: AppStorage, onRegistered: () -> Unit, onBack: () -> Unit) {
+    var fullName   by remember { mutableStateOf("") }
+    var studentId  by remember { mutableStateOf("") }
+    var username   by remember { mutableStateOf("") }
+    var password   by remember { mutableStateOf("") }
+    var confirm    by remember { mutableStateOf("") }
+    var pwVisible  by remember { mutableStateOf(false) }
+    var error      by remember { mutableStateOf<String?>(null) }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Brush.verticalGradient(listOf(UoNBlue, Color(0xFF1565C0), PageBg)))
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState()),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            // Top bar
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .statusBarsPadding()
+                    .padding(horizontal = 8.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = onBack) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = SurfaceWhite)
+                }
+                Text("Create Account", color = SurfaceWhite, fontWeight = FontWeight.SemiBold, fontSize = 17.sp)
+            }
+
+            Spacer(Modifier.height(16.dp))
+            Box(
+                modifier = Modifier
+                    .size(64.dp)
+                    .clip(CircleShape)
+                    .background(SurfaceWhite.copy(alpha = 0.15f))
+                    .border(2.dp, SurfaceWhite.copy(alpha = 0.5f), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("UoN", color = SurfaceWhite, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+            }
+            Spacer(Modifier.height(24.dp))
+
+            Card(
+                modifier = Modifier.padding(horizontal = 24.dp).fillMaxWidth(),
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = SurfaceWhite),
+                elevation = CardDefaults.cardElevation(8.dp)
+            ) {
+                Column(modifier = Modifier.padding(28.dp)) {
+                    Text("Register", fontWeight = FontWeight.Bold, fontSize = 22.sp, color = TextPrimary)
+                    Text("Set up your student account", color = TextSecondary, fontSize = 13.sp)
+                    Spacer(Modifier.height(24.dp))
+
+                    AuthTextField(fullName, { fullName = it; error = null }, "Full Name", Icons.Default.Badge)
+                    Spacer(Modifier.height(12.dp))
+                    AuthTextField(studentId, { studentId = it; error = null }, "Student ID (e.g. C02-0000/2022)", Icons.Default.CreditCard)
+                    Spacer(Modifier.height(12.dp))
+                    AuthTextField(username, { username = it; error = null }, "Username", Icons.Default.Person)
+                    Spacer(Modifier.height(12.dp))
+                    AuthTextField(
+                        value = password, onValueChange = { password = it; error = null },
+                        label = "Password", leadingIcon = Icons.Default.Lock,
+                        isPassword = true, passwordVisible = pwVisible,
+                        onTogglePassword = { pwVisible = !pwVisible }
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    AuthTextField(
+                        value = confirm, onValueChange = { confirm = it; error = null },
+                        label = "Confirm Password", leadingIcon = Icons.Default.Lock,
+                        isPassword = true, passwordVisible = pwVisible,
+                        onTogglePassword = { pwVisible = !pwVisible }
+                    )
+
+                    if (error != null) {
+                        Spacer(Modifier.height(8.dp))
+                        Text(error!!, color = ErrorRed, fontSize = 12.sp)
+                    }
+
+                    Spacer(Modifier.height(24.dp))
+                    Button(
+                        onClick = {
+                            error = when {
+                                fullName.isBlank()    -> "Full name is required"
+                                studentId.isBlank()   -> "Student ID is required"
+                                username.isBlank()    -> "Username is required"
+                                username.length < 3   -> "Username must be at least 3 characters"
+                                password.length < 6   -> "Password must be at least 6 characters"
+                                password != confirm   -> "Passwords do not match"
+                                storage.usernameExists(username.trim()) -> "Username already taken"
+                                else -> null
+                            }
+                            if (error == null) {
+                                val user = AppUser(
+                                    username = username.trim(),
+                                    fullName = fullName.trim(),
+                                    studentId = studentId.trim(),
+                                    passwordHash = storage.simpleHash(password)
+                                )
+                                storage.saveUser(user)
+                                onRegistered()
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth().height(52.dp),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = UoNBlue)
+                    ) {
+                        Text("Create Account", fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+                    }
+
+                    Spacer(Modifier.height(12.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Already have an account? ", color = TextSecondary, fontSize = 13.sp)
+                        TextButton(onClick = onBack, contentPadding = PaddingValues(0.dp)) {
+                            Text("Sign in", color = UoNLightBlue, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.height(40.dp))
+        }
+    }
+}
+
+// ── Reusable Auth Text Field ──────────────────────────────────────────────────
+@Composable
+fun AuthTextField(
+    value: String, onValueChange: (String) -> Unit, label: String,
+    leadingIcon: ImageVector, isPassword: Boolean = false,
+    passwordVisible: Boolean = false, onTogglePassword: (() -> Unit)? = null
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        label = { Text(label, fontSize = 13.sp) },
+        leadingIcon = { Icon(leadingIcon, null, tint = UoNLightBlue, modifier = Modifier.size(20.dp)) },
+        trailingIcon = if (isPassword) {
+            {
+                IconButton(onClick = { onTogglePassword?.invoke() }) {
+                    Icon(
+                        if (passwordVisible) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                        null, tint = TextSecondary, modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+        } else null,
+        visualTransformation = if (isPassword && !passwordVisible) PasswordVisualTransformation() else VisualTransformation.None,
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        singleLine = true,
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedBorderColor = UoNLightBlue,
+            unfocusedBorderColor = DividerColor,
+            focusedContainerColor = UoNSky,
+            unfocusedContainerColor = Color(0xFFF9FAFC),
+        ),
+        textStyle = LocalTextStyle.current.copy(fontSize = 14.sp, color = TextPrimary)
+    )
+}
+
+// ── Main App Shell (Bottom Nav) ───────────────────────────────────────────────
+sealed class BottomTab(val route: String, val label: String, val icon: ImageVector) {
+    object Home       : BottomTab("home",       "Home",       Icons.Default.Home)
+    object Courses    : BottomTab("courses",    "Courses",    Icons.Default.MenuBook)
+    object MyCourses  : BottomTab("my_courses", "My Courses", Icons.Default.School)
+    object Profile    : BottomTab("profile",    "Profile",    Icons.Default.Person)
+}
+
+val BOTTOM_TABS = listOf(BottomTab.Home, BottomTab.Courses, BottomTab.MyCourses, BottomTab.Profile)
+
+@Composable
+fun MainAppShell(storage: AppStorage, user: AppUser, onLogout: () -> Unit) {
+    val navController = rememberNavController()
+    val navBackStack by navController.currentBackStackEntryAsState()
+    val currentRoute = navBackStack?.destination?.route
+
+    // Refresh trigger for registration changes
+    var refreshKey by remember { mutableStateOf(0) }
+
+    Scaffold(
+        containerColor = PageBg,
+        bottomBar = {
+            NavigationBar(
+                containerColor = SurfaceWhite,
+                tonalElevation = 0.dp,
+                modifier = Modifier
+                    .shadow(12.dp, RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
+                    .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
+            ) {
+                BOTTOM_TABS.forEach { tab ->
+                    val selected = currentRoute == tab.route ||
+                            (currentRoute?.startsWith("course_detail") == true && tab.route == "courses")
+                    NavigationBarItem(
+                        selected = selected,
+                        onClick = {
+                            navController.navigate(tab.route) {
+                                popUpTo(navController.graph.startDestinationId) { saveState = true }
+                                launchSingleTop = true
+                                restoreState = true
+                            }
+                        },
+                        icon = {
+                            Icon(tab.icon, null, modifier = Modifier.size(22.dp))
+                        },
+                        label = { Text(tab.label, fontSize = 11.sp) },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = UoNBlue,
+                            selectedTextColor = UoNBlue,
+                            indicatorColor = UoNSky,
+                            unselectedIconColor = TextSecondary,
+                            unselectedTextColor = TextSecondary
+                        )
+                    )
+                }
+            }
+        }
+    ) { innerPadding ->
+        NavHost(
+            navController = navController,
+            startDestination = BottomTab.Home.route,
+            modifier = Modifier.padding(innerPadding)
+        ) {
+            composable(BottomTab.Home.route) {
+                HomeScreen(storage, user, navController, refreshKey)
+            }
+            composable(BottomTab.Courses.route) {
+                CoursesScreen(storage, user, navController, refreshKey) { refreshKey++ }
+            }
+            composable(BottomTab.MyCourses.route) {
+                MyCoursesScreen(storage, user, navController, refreshKey) { refreshKey++ }
+            }
+            composable(BottomTab.Profile.route) {
+                ProfileScreen(user, onLogout)
+            }
+            composable("course_detail/{courseCode}") { backStack ->
+                val code = backStack.arguments?.getString("courseCode") ?: ""
+                val course = COURSE_CATALOGUE.find { it.code == code }
+                if (course != null) {
+                    CourseDetailScreen(storage, user, course, navController, refreshKey) { refreshKey++ }
+                }
+            }
+        }
+    }
+}
+
+// ── Home Screen ───────────────────────────────────────────────────────────────
+@Composable
+fun HomeScreen(storage: AppStorage, user: AppUser, navController: NavHostController, refreshKey: Int) {
+    val registered = remember(refreshKey) { storage.getRegisteredCourses(user.username) }
+    val registeredCourses = COURSE_CATALOGUE.filter { it.code in registered }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+    ) {
+        // Header
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Brush.verticalGradient(listOf(UoNBlue, UoNLightBlue)))
+                .statusBarsPadding()
+                .padding(horizontal = 24.dp, vertical = 24.dp)
+        ) {
+            Column {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(CircleShape)
+                            .background(SurfaceWhite.copy(alpha = 0.2f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            user.fullName.firstOrNull()?.uppercase() ?: "U",
+                            color = SurfaceWhite, fontWeight = FontWeight.Bold, fontSize = 18.sp
+                        )
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Column {
+                        Text("Welcome back,", color = SurfaceWhite.copy(alpha = 0.75f), fontSize = 12.sp)
+                        Text(user.fullName.split(" ").firstOrNull() ?: user.fullName,
+                            color = SurfaceWhite, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                    }
+                }
+                Spacer(Modifier.height(20.dp))
+                // Stats Row
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    StatChip("${registered.size}", "Registered", Modifier.weight(1f))
+                    StatChip("${COURSE_CATALOGUE.size}", "Available", Modifier.weight(1f))
+                    StatChip("${registered.size * 3}", "Credits", Modifier.weight(1f))
+                }
+            }
+        }
+
+        Spacer(Modifier.height(20.dp))
+
+        // Quick Actions
+        Text("Quick Actions", fontWeight = FontWeight.SemiBold, fontSize = 15.sp,
+            color = TextPrimary, modifier = Modifier.padding(horizontal = 20.dp))
+        Spacer(Modifier.height(12.dp))
+
+        Row(
+            modifier = Modifier.padding(horizontal = 20.dp).fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            QuickActionCard(
+                icon = Icons.Default.MenuBook,
+                label = "Browse\nCourses",
+                color = UoNBlue,
+                modifier = Modifier.weight(1f)
+            ) { navController.navigate(BottomTab.Courses.route) }
+
+            QuickActionCard(
+                icon = Icons.Default.School,
+                label = "My\nCourses",
+                color = Color(0xFF2E7D32),
+                modifier = Modifier.weight(1f)
+            ) { navController.navigate(BottomTab.MyCourses.route) }
+
+            QuickActionCard(
+                icon = Icons.Default.Person,
+                label = "My\nProfile",
+                color = Color(0xFF6A1B9A),
+                modifier = Modifier.weight(1f)
+            ) { navController.navigate(BottomTab.Profile.route) }
+        }
+
+        Spacer(Modifier.height(24.dp))
+
+        // Recent Courses
+        if (registeredCourses.isNotEmpty()) {
+            Row(
+                modifier = Modifier.padding(horizontal = 20.dp).fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("My Courses", fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = TextPrimary)
+                TextButton(onClick = { navController.navigate(BottomTab.MyCourses.route) }) {
+                    Text("See all", color = UoNLightBlue, fontSize = 12.sp)
+                }
+            }
+            Spacer(Modifier.height(8.dp))
+            registeredCourses.take(3).forEach { course ->
+                HomeCourseCard(course, modifier = Modifier.padding(horizontal = 20.dp)) {
+                    navController.navigate("course_detail/${course.code}")
+                }
+                Spacer(Modifier.height(8.dp))
+            }
+        } else {
+            // Empty state
+            Card(
+                modifier = Modifier.padding(horizontal = 20.dp).fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = SurfaceWhite),
                 border = BorderStroke(1.dp, DividerColor)
             ) {
-                Column(modifier = Modifier.padding(24.dp)) {
-                    ConfirmationRow(label = "Student ID", value = studentId)
+                Column(
+                    modifier = Modifier.padding(32.dp).fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Icon(Icons.Default.MenuBook, null, tint = TextSecondary.copy(alpha = 0.5f),
+                        modifier = Modifier.size(48.dp))
+                    Spacer(Modifier.height(12.dp))
+                    Text("No courses yet", fontWeight = FontWeight.SemiBold, color = TextPrimary)
+                    Text("Browse courses and register for units\nthis semester.",
+                        color = TextSecondary, fontSize = 13.sp, textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(top = 4.dp))
+                    Spacer(Modifier.height(16.dp))
+                    Button(
+                        onClick = { navController.navigate(BottomTab.Courses.route) },
+                        shape = RoundedCornerShape(10.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = UoNBlue)
+                    ) {
+                        Text("Browse Courses", fontSize = 13.sp)
+                    }
+                }
+            }
+        }
+        Spacer(Modifier.height(24.dp))
+
+        // Academic Notice
+        Card(
+            modifier = Modifier.padding(horizontal = 20.dp).fillMaxWidth(),
+            shape = RoundedCornerShape(14.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF8E1)),
+            border = BorderStroke(1.dp, UoNGold.copy(alpha = 0.4f))
+        ) {
+            Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.Top) {
+                Icon(Icons.Default.Info, null, tint = UoNGold, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(10.dp))
+                Column {
+                    Text("Registration Deadline", fontWeight = FontWeight.SemiBold,
+                        fontSize = 13.sp, color = Color(0xFF7A5500))
+                    Text("Semester II course registration closes on 30th May 2026. Register before the deadline.",
+                        fontSize = 12.sp, color = Color(0xFF7A5500).copy(alpha = 0.8f), lineHeight = 18.sp)
+                }
+            }
+        }
+        Spacer(Modifier.height(32.dp))
+    }
+}
+
+@Composable
+fun StatChip(value: String, label: String, modifier: Modifier = Modifier) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(SurfaceWhite.copy(alpha = 0.18f))
+            .padding(vertical = 10.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(value, color = SurfaceWhite, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+            Text(label, color = SurfaceWhite.copy(alpha = 0.75f), fontSize = 11.sp)
+        }
+    }
+}
+
+@Composable
+fun QuickActionCard(icon: ImageVector, label: String, color: Color, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Card(
+        modifier = modifier.clickable(onClick = onClick),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = SurfaceWhite),
+        elevation = CardDefaults.cardElevation(2.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp).fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(color.copy(alpha = 0.12f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(icon, null, tint = color, modifier = Modifier.size(20.dp))
+            }
+            Spacer(Modifier.height(8.dp))
+            Text(label, fontSize = 11.sp, color = TextPrimary, textAlign = TextAlign.Center,
+                fontWeight = FontWeight.Medium, lineHeight = 15.sp)
+        }
+    }
+}
+
+@Composable
+fun HomeCourseCard(course: Course, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Card(
+        modifier = modifier.fillMaxWidth().clickable(onClick = onClick),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = SurfaceWhite),
+        elevation = CardDefaults.cardElevation(1.dp)
+    ) {
+        Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .size(42.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(UoNSky),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(course.code.take(3), color = UoNBlue, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(course.name, fontWeight = FontWeight.SemiBold, fontSize = 13.sp,
+                    color = TextPrimary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Text("${course.code} · ${course.credits} Credits", fontSize = 11.sp, color = TextSecondary)
+            }
+            Icon(Icons.Default.ChevronRight, null, tint = TextSecondary.copy(alpha = 0.5f))
+        }
+    }
+}
+
+// ── Courses Catalogue Screen ───────────────────────────────────────────────────
+@Composable
+fun CoursesScreen(
+    storage: AppStorage, user: AppUser,
+    navController: NavHostController, refreshKey: Int,
+    onRefresh: () -> Unit
+) {
+    var searchQuery by remember { mutableStateOf("") }
+    val registered = remember(refreshKey) { storage.getRegisteredCourses(user.username) }
+
+    val filtered = COURSE_CATALOGUE.filter {
+        searchQuery.isBlank() ||
+                it.name.contains(searchQuery, ignoreCase = true) ||
+                it.code.contains(searchQuery, ignoreCase = true) ||
+                it.department.contains(searchQuery, ignoreCase = true)
+    }
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        // Header
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Brush.verticalGradient(listOf(UoNBlue, UoNLightBlue)))
+                .statusBarsPadding()
+                .padding(horizontal = 20.dp, vertical = 20.dp)
+        ) {
+            Column {
+                Text("Course Catalogue", color = SurfaceWhite, fontWeight = FontWeight.Bold, fontSize = 22.sp)
+                Text("${COURSE_CATALOGUE.size} units available · Sem II 2025/26",
+                    color = SurfaceWhite.copy(alpha = 0.75f), fontSize = 12.sp)
+                Spacer(Modifier.height(14.dp))
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    placeholder = { Text("Search courses...", fontSize = 13.sp, color = SurfaceWhite.copy(alpha = 0.6f)) },
+                    leadingIcon = { Icon(Icons.Default.Search, null, tint = SurfaceWhite.copy(alpha = 0.7f)) },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = SurfaceWhite.copy(alpha = 0.5f),
+                        unfocusedBorderColor = SurfaceWhite.copy(alpha = 0.3f),
+                        focusedContainerColor = SurfaceWhite.copy(alpha = 0.15f),
+                        unfocusedContainerColor = SurfaceWhite.copy(alpha = 0.1f),
+                        focusedTextColor = SurfaceWhite,
+                        unfocusedTextColor = SurfaceWhite,
+                    ),
+                    textStyle = LocalTextStyle.current.copy(fontSize = 14.sp)
+                )
+            }
+        }
+
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            if (filtered.isEmpty()) {
+                item {
+                    Box(modifier = Modifier.fillMaxWidth().padding(48.dp), contentAlignment = Alignment.Center) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(Icons.Default.SearchOff, null, tint = TextSecondary.copy(alpha = 0.4f),
+                                modifier = Modifier.size(48.dp))
+                            Spacer(Modifier.height(10.dp))
+                            Text("No courses found", color = TextSecondary)
+                        }
+                    }
+                }
+            } else {
+                items(filtered) { course ->
+                    val isRegistered = course.code in registered
+                    CatalogueCard(
+                        course = course,
+                        isRegistered = isRegistered,
+                        onClick = { navController.navigate("course_detail/${course.code}") },
+                        onRegister = {
+                            if (isRegistered) storage.unregisterCourse(user.username, course.code)
+                            else storage.registerCourse(user.username, course.code)
+                            onRefresh()
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun CatalogueCard(course: Course, isRegistered: Boolean, onClick: () -> Unit, onRegister: () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = SurfaceWhite),
+        elevation = CardDefaults.cardElevation(1.dp),
+        border = if (isRegistered) BorderStroke(1.5.dp, SuccessGreen.copy(alpha = 0.4f)) else null
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(verticalAlignment = Alignment.Top) {
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(if (isRegistered) Color(0xFFE8F5E9) else UoNSky),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(course.code.take(3), color = if (isRegistered) SuccessGreen else UoNBlue,
+                        fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                }
+                Spacer(Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(course.name, fontWeight = FontWeight.SemiBold, fontSize = 14.sp, color = TextPrimary)
+                    Spacer(Modifier.height(2.dp))
+                    Text(course.code, fontSize = 12.sp, color = UoNLightBlue, fontWeight = FontWeight.Medium)
+                }
+                if (isRegistered) {
+                    Icon(Icons.Default.CheckCircle, null, tint = SuccessGreen, modifier = Modifier.size(18.dp))
+                }
+            }
+            Spacer(Modifier.height(10.dp))
+            Text(course.description, fontSize = 12.sp, color = TextSecondary, maxLines = 2,
+                overflow = TextOverflow.Ellipsis, lineHeight = 17.sp)
+            Spacer(Modifier.height(12.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                CoursePill("${course.credits} Credits")
+                Spacer(Modifier.width(6.dp))
+                CoursePill(course.department.split(" & ").firstOrNull() ?: course.department)
+                Spacer(Modifier.weight(1f))
+                Button(
+                    onClick = onRegister,
+                    modifier = Modifier.height(32.dp),
+                    shape = RoundedCornerShape(8.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (isRegistered) Color(0xFFEEEEEE) else UoNBlue,
+                        contentColor = if (isRegistered) TextPrimary else SurfaceWhite
+                    ),
+                    contentPadding = PaddingValues(horizontal = 12.dp)
+                ) {
+                    Text(if (isRegistered) "Drop" else "Register", fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun CoursePill(text: String) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(6.dp))
+            .background(PageBg)
+            .padding(horizontal = 8.dp, vertical = 4.dp)
+    ) {
+        Text(text, fontSize = 10.sp, color = TextSecondary, fontWeight = FontWeight.Medium)
+    }
+}
+
+// ── My Courses Screen ─────────────────────────────────────────────────────────
+@Composable
+fun MyCoursesScreen(
+    storage: AppStorage, user: AppUser,
+    navController: NavHostController, refreshKey: Int,
+    onRefresh: () -> Unit
+) {
+    val registered = remember(refreshKey) { storage.getRegisteredCourses(user.username) }
+    val myCourses = COURSE_CATALOGUE.filter { it.code in registered }
+    val totalCredits = myCourses.sumOf { it.credits }
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        // Header
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Brush.verticalGradient(listOf(Color(0xFF1B5E20), Color(0xFF2E7D32))))
+                .statusBarsPadding()
+                .padding(horizontal = 20.dp, vertical = 20.dp)
+        ) {
+            Column {
+                Text("My Courses", color = SurfaceWhite, fontWeight = FontWeight.Bold, fontSize = 22.sp)
+                Text("${myCourses.size} units · $totalCredits credits enrolled",
+                    color = SurfaceWhite.copy(alpha = 0.75f), fontSize = 12.sp)
+            }
+        }
+
+        if (myCourses.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(Icons.Default.School, null, tint = TextSecondary.copy(alpha = 0.3f),
+                        modifier = Modifier.size(64.dp))
+                    Spacer(Modifier.height(16.dp))
+                    Text("No courses yet", fontWeight = FontWeight.SemiBold, color = TextPrimary, fontSize = 18.sp)
+                    Text("Register for courses from the catalogue",
+                        color = TextSecondary, fontSize = 13.sp, modifier = Modifier.padding(top = 4.dp))
+                    Spacer(Modifier.height(20.dp))
+                    Button(
+                        onClick = { navController.navigate(BottomTab.Courses.route) },
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = UoNBlue)
+                    ) { Text("Browse Courses") }
+                }
+            }
+        } else {
+            LazyColumn(
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 14.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier.fillMaxSize()
+            ) {
+                // Summary card
+                item {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFE8F5E9)),
+                        border = BorderStroke(1.dp, SuccessGreen.copy(alpha = 0.3f))
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(16.dp).fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceAround
+                        ) {
+                            SummaryItem("${myCourses.size}", "Units")
+                            VerticalDivider(modifier = Modifier.height(36.dp), color = SuccessGreen.copy(alpha = 0.3f))
+                            SummaryItem("$totalCredits", "Credits")
+                            VerticalDivider(modifier = Modifier.height(36.dp), color = SuccessGreen.copy(alpha = 0.3f))
+                            SummaryItem("Sem II", "Period")
+                        }
+                    }
+                }
+                items(myCourses) { course ->
+                    MyCoursesCard(course,
+                        onClick = { navController.navigate("course_detail/${course.code}") },
+                        onDrop = {
+                            storage.unregisterCourse(user.username, course.code)
+                            onRefresh()
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun SummaryItem(value: String, label: String) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(value, fontWeight = FontWeight.Bold, fontSize = 20.sp, color = SuccessGreen)
+        Text(label, fontSize = 11.sp, color = TextSecondary)
+    }
+}
+
+@Composable
+fun MyCoursesCard(course: Course, onClick: () -> Unit, onDrop: () -> Unit) {
+    var showConfirm by remember { mutableStateOf(false) }
+
+    if (showConfirm) {
+        AlertDialog(
+            onDismissRequest = { showConfirm = false },
+            title = { Text("Drop Course?", fontWeight = FontWeight.Bold) },
+            text = { Text("Are you sure you want to drop ${course.name}?", fontSize = 14.sp) },
+            confirmButton = {
+                TextButton(onClick = { showConfirm = false; onDrop() }) {
+                    Text("Drop", color = ErrorRed, fontWeight = FontWeight.SemiBold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showConfirm = false }) { Text("Cancel") }
+            }
+        )
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = SurfaceWhite),
+        elevation = CardDefaults.cardElevation(1.dp),
+        border = BorderStroke(1.dp, SuccessGreen.copy(alpha = 0.25f))
+    ) {
+        Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(Color(0xFFE8F5E9)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(course.code.take(3), color = SuccessGreen, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(course.name, fontWeight = FontWeight.SemiBold, fontSize = 13.sp,
+                    color = TextPrimary, maxLines = 2, overflow = TextOverflow.Ellipsis, lineHeight = 18.sp)
+                Spacer(Modifier.height(2.dp))
+                Text("${course.code} · ${course.credits} Credits", fontSize = 11.sp, color = TextSecondary)
+                Spacer(Modifier.height(4.dp))
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(Color(0xFFE8F5E9))
+                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                ) {
+                    Text("✓ Enrolled", fontSize = 10.sp, color = SuccessGreen, fontWeight = FontWeight.Medium)
+                }
+            }
+            IconButton(onClick = { showConfirm = true }, modifier = Modifier.size(36.dp)) {
+                Icon(Icons.Default.DeleteOutline, null, tint = ErrorRed.copy(alpha = 0.6f), modifier = Modifier.size(18.dp))
+            }
+        }
+    }
+}
+
+// ── Course Detail Screen ──────────────────────────────────────────────────────
+@Composable
+fun CourseDetailScreen(
+    storage: AppStorage, user: AppUser,
+    course: Course, navController: NavHostController, refreshKey: Int,
+    onRefresh: () -> Unit
+) {
+    val isRegistered = remember(refreshKey) {
+        course.code in storage.getRegisteredCourses(user.username)
+    }
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Brush.verticalGradient(listOf(UoNBlue, UoNLightBlue)))
+                .statusBarsPadding()
+                .padding(horizontal = 16.dp, vertical = 16.dp)
+        ) {
+            IconButton(onClick = { navController.popBackStack() },
+                modifier = Modifier.align(Alignment.CenterStart)) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, null, tint = SurfaceWhite)
+            }
+            Text("Course Details", modifier = Modifier.align(Alignment.Center),
+                color = SurfaceWhite, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+        }
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(20.dp)
+        ) {
+            // Course header card
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = SurfaceWhite),
+                elevation = CardDefaults.cardElevation(2.dp)
+            ) {
+                Column(modifier = Modifier.padding(20.dp)) {
+                    Row(verticalAlignment = Alignment.Top) {
+                        Box(
+                            modifier = Modifier
+                                .size(56.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(UoNSky),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(course.code.take(3), color = UoNBlue, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        }
+                        Spacer(Modifier.width(14.dp))
+                        Column {
+                            Text(course.name, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = TextPrimary, lineHeight = 22.sp)
+                            Spacer(Modifier.height(4.dp))
+                            Text(course.code, fontSize = 13.sp, color = UoNLightBlue, fontWeight = FontWeight.SemiBold)
+                        }
+                    }
                     Spacer(Modifier.height(16.dp))
                     HorizontalDivider(color = DividerColor)
                     Spacer(Modifier.height(16.dp))
-                    ConfirmationRow(label = "Course Unit", value = course)
-                    Spacer(Modifier.height(16.dp))
-                    HorizontalDivider(color = DividerColor)
-                    Spacer(Modifier.height(16.dp))
-                    ConfirmationRow(label = "Department", value = "Computing & Informatics")
-                    Spacer(Modifier.height(16.dp))
-                    HorizontalDivider(color = DividerColor)
-                    Spacer(Modifier.height(16.dp))
-                    ConfirmationRow(label = "Status", value = "✓  Registered", valueColor = SuccessGreen)
+                    DetailRow("Department", course.department)
+                    Spacer(Modifier.height(12.dp))
+                    DetailRow("Credit Hours", "${course.credits} Credits")
+                    Spacer(Modifier.height(12.dp))
+                    DetailRow("Offered", course.semester)
+                    Spacer(Modifier.height(12.dp))
+                    DetailRow("Status", if (isRegistered) "✓  Enrolled" else "Open for registration")
+                }
+            }
+
+            Spacer(Modifier.height(16.dp))
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = SurfaceWhite),
+                elevation = CardDefaults.cardElevation(1.dp)
+            ) {
+                Column(modifier = Modifier.padding(20.dp)) {
+                    Text("Overview", fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = TextPrimary)
+                    Spacer(Modifier.height(8.dp))
+                    Text(course.description, fontSize = 14.sp, color = TextSecondary, lineHeight = 22.sp)
                 }
             }
 
             Spacer(Modifier.height(28.dp))
 
-            // Reference tag
-            Box(
-                modifier = Modifier
-                    .padding(horizontal = 24.dp)
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(UoNSky)
-                    .padding(horizontal = 16.dp, vertical = 12.dp)
-            ) {
-                Column {
-                    Text("Reference Number", fontSize = 11.sp, color = TextSecondary, fontWeight = FontWeight.Medium)
-                    Spacer(Modifier.height(2.dp))
-                    Text(
-                        generateRef(studentId),
-                        fontSize = 15.sp,
-                        color = UoNBlue,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 1.sp
-                    )
-                }
-            }
-
-            Spacer(Modifier.height(32.dp))
-
-            // Back button
-            OutlinedButton(
-                onClick = { navController.popBackStack() },
-                modifier = Modifier
-                    .padding(horizontal = 24.dp)
-                    .fillMaxWidth()
-                    .height(52.dp),
+            Button(
+                onClick = {
+                    if (isRegistered) storage.unregisterCourse(user.username, course.code)
+                    else storage.registerCourse(user.username, course.code)
+                    onRefresh()
+                    navController.popBackStack()
+                },
+                modifier = Modifier.fillMaxWidth().height(52.dp),
                 shape = RoundedCornerShape(14.dp),
-                border = BorderStroke(1.5.dp, UoNBlue),
-                colors = ButtonDefaults.outlinedButtonColors(contentColor = UoNBlue)
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (isRegistered) Color(0xFFEEEEEE) else UoNBlue,
+                    contentColor = if (isRegistered) ErrorRed else SurfaceWhite
+                )
             ) {
+                Icon(
+                    if (isRegistered) Icons.Default.RemoveCircle else Icons.Default.AddCircle,
+                    null, modifier = Modifier.size(18.dp)
+                )
+                Spacer(Modifier.width(8.dp))
                 Text(
-                    "Register Another Course",
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 15.sp
+                    if (isRegistered) "Drop this Course" else "Register for this Course",
+                    fontWeight = FontWeight.SemiBold, fontSize = 15.sp
                 )
             }
-
-            Spacer(Modifier.height(40.dp))
         }
     }
 }
 
-// ── Helper Composables ────────────────────────────────────────────────────────
 @Composable
-fun SectionLabel(text: String) {
-    Text(
-        text,
-        fontSize = 12.sp,
-        fontWeight = FontWeight.SemiBold,
-        color = TextSecondary,
-        letterSpacing = 0.8.sp
-    )
+fun DetailRow(label: String, value: String) {
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        Text(label, fontSize = 13.sp, color = TextSecondary, fontWeight = FontWeight.Medium)
+        Text(value, fontSize = 13.sp, color = TextPrimary, fontWeight = FontWeight.SemiBold)
+    }
+}
+
+// ── Profile Screen ────────────────────────────────────────────────────────────
+@Composable
+fun ProfileScreen(user: AppUser, onLogout: () -> Unit) {
+    var showLogoutDialog by remember { mutableStateOf(false) }
+
+    if (showLogoutDialog) {
+        AlertDialog(
+            onDismissRequest = { showLogoutDialog = false },
+            title = { Text("Sign Out?", fontWeight = FontWeight.Bold) },
+            text = { Text("You'll need to sign in again to access your account.", fontSize = 14.sp) },
+            confirmButton = {
+                TextButton(onClick = { showLogoutDialog = false; onLogout() }) {
+                    Text("Sign Out", color = ErrorRed, fontWeight = FontWeight.SemiBold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showLogoutDialog = false }) { Text("Cancel") }
+            }
+        )
+    }
+
+    Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+        // Header
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Brush.verticalGradient(listOf(Color(0xFF4A148C), Color(0xFF6A1B9A))))
+                .statusBarsPadding()
+                .padding(horizontal = 20.dp, vertical = 32.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Box(
+                    modifier = Modifier
+                        .size(80.dp)
+                        .clip(CircleShape)
+                        .background(SurfaceWhite.copy(alpha = 0.2f))
+                        .border(2.dp, SurfaceWhite.copy(alpha = 0.5f), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        user.fullName.firstOrNull()?.uppercase() ?: "U",
+                        color = SurfaceWhite, fontWeight = FontWeight.Bold, fontSize = 32.sp
+                    )
+                }
+                Spacer(Modifier.height(12.dp))
+                Text(user.fullName, color = SurfaceWhite, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                Text("@${user.username}", color = SurfaceWhite.copy(alpha = 0.7f), fontSize = 13.sp)
+            }
+        }
+
+        Spacer(Modifier.height(20.dp))
+
+        // Account Info
+        ProfileSection("Account Information") {
+            ProfileInfoRow(Icons.Default.Badge, "Full Name", user.fullName)
+            HorizontalDivider(color = DividerColor, modifier = Modifier.padding(horizontal = 16.dp))
+            ProfileInfoRow(Icons.Default.Person, "Username", user.username)
+            HorizontalDivider(color = DividerColor, modifier = Modifier.padding(horizontal = 16.dp))
+            ProfileInfoRow(Icons.Default.CreditCard, "Student ID", user.studentId)
+        }
+
+        Spacer(Modifier.height(16.dp))
+
+        ProfileSection("Academic Info") {
+            ProfileInfoRow(Icons.Default.School, "Department", "Computing & Informatics")
+            HorizontalDivider(color = DividerColor, modifier = Modifier.padding(horizontal = 16.dp))
+            ProfileInfoRow(Icons.Default.CalendarToday, "Academic Year", "2025/2026")
+            HorizontalDivider(color = DividerColor, modifier = Modifier.padding(horizontal = 16.dp))
+            ProfileInfoRow(Icons.Default.LocationCity, "Institution", "University of Nairobi")
+        }
+
+        Spacer(Modifier.height(24.dp))
+
+        // Sign out
+        Card(
+            modifier = Modifier.padding(horizontal = 20.dp).fillMaxWidth()
+                .clickable { showLogoutDialog = true },
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFFFFF0F0)),
+            border = BorderStroke(1.dp, ErrorRed.copy(alpha = 0.2f))
+        ) {
+            Row(
+                modifier = Modifier.padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(Icons.Default.Logout, null, tint = ErrorRed, modifier = Modifier.size(20.dp))
+                Spacer(Modifier.width(12.dp))
+                Text("Sign Out", color = ErrorRed, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+            }
+        }
+        Spacer(Modifier.height(40.dp))
+    }
 }
 
 @Composable
-fun ConfirmationRow(label: String, value: String, valueColor: Color = TextPrimary) {
-    Column {
-        Text(label, fontSize = 11.sp, fontWeight = FontWeight.Medium, color = TextSecondary, letterSpacing = 0.5.sp)
-        Spacer(Modifier.height(4.dp))
-        Text(value, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = valueColor, lineHeight = 20.sp)
+fun ProfileSection(title: String, content: @Composable ColumnScope.() -> Unit) {
+    Column(modifier = Modifier.padding(horizontal = 20.dp)) {
+        Text(title, fontSize = 12.sp, fontWeight = FontWeight.SemiBold,
+            color = TextSecondary, letterSpacing = 0.8.sp,
+            modifier = Modifier.padding(bottom = 8.dp))
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = SurfaceWhite),
+            elevation = CardDefaults.cardElevation(1.dp)
+        ) {
+            Column { content() }
+        }
+    }
+}
+
+@Composable
+fun ProfileInfoRow(icon: ImageVector, label: String, value: String) {
+    Row(
+        modifier = Modifier.padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(icon, null, tint = UoNLightBlue, modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(12.dp))
+        Column {
+            Text(label, fontSize = 11.sp, color = TextSecondary, fontWeight = FontWeight.Medium)
+            Text(value, fontSize = 14.sp, color = TextPrimary, fontWeight = FontWeight.SemiBold)
+        }
     }
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-fun validateStudentId(id: String): String? {
-    val trimmed = id.trim()
-    return when {
-        trimmed.isBlank()      -> "Student ID cannot be empty"
-        trimmed.length < 5     -> "Student ID is too short"
-        trimmed.length > 20    -> "Student ID is too long"
-        !trimmed.any { it.isDigit() } -> "Student ID must contain numbers"
-        else                   -> null
-    }
-}
-
 fun generateRef(studentId: String): String {
     val ts = System.currentTimeMillis().toString().takeLast(6)
     return "UON-REG-${studentId.takeLast(4).uppercase()}-$ts"
