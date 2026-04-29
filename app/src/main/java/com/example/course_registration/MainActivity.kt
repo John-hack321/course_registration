@@ -34,6 +34,8 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.*
 import com.example.course_registration.ui.theme.Course_registrationTheme
+import java.net.URLEncoder
+import java.net.URLDecoder
 
 // ── UoN Brand Colors ──────────────────────────────────────────────────────────
 val UoNBlue       = Color(0xFF003580)   // primary deep blue
@@ -299,8 +301,11 @@ fun MainScreen(navController: NavHostController) {
                                     .putString(KEY_LAST_ID, studentId)
                                     .putString(KEY_LAST_COURSE, selectedCourse)
                                     .apply()
-                                val encodedCourse = java.net.URLEncoder.encode(selectedCourse, "UTF-8")
-                                navController.navigate("confirmation/$studentId/$encodedCourse")
+                                
+                                // URL Encode arguments to handle characters like '/' and '&'
+                                val encodedId = URLEncoder.encode(studentId, "UTF-8")
+                                val encodedCourse = URLEncoder.encode(selectedCourse, "UTF-8")
+                                navController.navigate("confirmation/$encodedId/$encodedCourse")
                             }
                         },
                         modifier = Modifier
@@ -341,10 +346,11 @@ fun MainScreen(navController: NavHostController) {
 @Composable
 fun ConfirmationScreen(
     navController: NavHostController,
-    studentId: String,
+    encodedStudentId: String,
     encodedCourse: String
 ) {
-    val course = java.net.URLDecoder.decode(encodedCourse, "UTF-8")
+    val studentId = URLDecoder.decode(encodedStudentId, "UTF-8")
+    val course    = URLDecoder.decode(encodedCourse, "UTF-8")
 
     // Animated check scale
     val scale by animateFloatAsState(
