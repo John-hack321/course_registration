@@ -1,8 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Base theme for the app - using Material3 -->
-    <style name="Theme.Course_registration" parent="Theme.Material3.DayNight">
+    <!--
+        WHY THIS THEME:
+        android:Theme.Material.Light.NoActionBar is part of the Android OS itself.
+        It requires ZERO extra dependencies — no AppCompat, no Material library needed.
+        This is the safest base for pure Jetpack Compose apps because Compose handles
+        all real UI theming via Course_registrationTheme() in Theme.kt.
+        This XML theme only controls the system window chrome (status bar, nav bar).
+    -->
+    <style name="Theme.Course_registration" parent="android:Theme.Material.Light.NoActionBar">
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:navigationBarColor">@android:color/transparent</item>
+        <item name="android:windowLightStatusBar">true</item>
     </style>
 </resources>
